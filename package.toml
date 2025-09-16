@@ -1,0 +1,14 @@
+[dependencies]
+# bottle是注册在资产中心的一个依赖，里面包含各种的瓶子
+# 会通过size-limit筛选出符合条件的bottle，然后下载到本地
+bottle = { size-limit = "10cm 10cm 10cm" }
+
+[objects]
+table_plane = { geom-type = "box", size = "1m 1m 10cm" }
+table_leg = { geom-type = "box", size = "10cm 10cm 50cm" }
+floor = { geom-type = "box", size = "10m 10m 1cm" }
+box_bottle = {geom-type = "box", size= "5cm 5cm 10cm"}
+
+[[groups]]
+name = "bottles"
+items = ["box_bottle", "bottle"]

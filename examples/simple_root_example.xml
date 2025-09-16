@@ -1,0 +1,43 @@
+<root>
+    <head>
+        <layout>
+# TOML layout sheet
+[default_layout]
+space_size = ["auto", "auto", "auto"]
+pos_x = "min"
+pos_y = "min"
+pos_z = "min"
+
+[[layouts]]
+selector = "#room"
+space_size = [5000, 3000, 2500]  # 5m x 3m x 2.5m
+pos_x = "center"
+pos_y = "center"
+pos_z = "min"
+
+[[layouts]]
+selector = "#table"
+space_size = [1500, 800, 750]   # 1.5m x 0.8m x 0.75m
+pos_x = "center"
+pos_y = "center"
+pos_z = "50cm"
+        </layout>
+    </head>
+    <body>
+        <space id="living_room">
+            <box x_len="5m" y_len="3m" z_len="2.5m" static_friction="0.5" dynamic_friction="0.3" />
+            
+            <space id="table">
+                <box x_len="1.5m" y_len="0.8m" z_len="0.75m" static_friction="0.4" dynamic_friction="0.2" />
+            </space>
+            
+            <space id="chair">
+                <cylinder radius="30cm" len="90cm" static_friction="0.4" dynamic_friction="0.2" />
+            </space>
+            
+            <space id="decoration">
+                <sphere radius="15cm" static_friction="0.6" dynamic_friction="0.4" />
+            </space>
+        </space>
+    </body>
+</root>

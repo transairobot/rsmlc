@@ -1,0 +1,46 @@
+<rsml>
+  <head>
+    <style> 
+      [[styles]] 
+      selector = "leg1" 
+      pos = "min min min" 
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+
+      [[styles]] 
+      selector = "leg2" 
+      pos = "min max min" 
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+
+      [[styles]] 
+      selector = "leg3" 
+      pos = "max max min" 
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+
+      [[styles]] 
+      selector = "leg4" 
+      pos = "max min min" <!-- 顺序是x y z. 这里是x取最大值, yz取最小值 -->
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+    </style>
+  </head>
+  <body>
+      <!-- flex默认-z，就是按照顺序从上到下排列-->
+    <div id="main_room" style="size:10m 10m 10m;display:flex;">
+      <div id="table_area" style="display:flex;justify-content:flex-end;">
+        <div id="on_table" style="display:flex;flex-direction: x">
+          <group select="random" > bottles </group>  <!-- 从bottle group中随机选择一个bottle-->
+          <group select="random" > bottles </group>  <!-- 从bottle group中随机选择一个bottle-->
+          <group select="first" > bottles </group>   <!-- 从bottle group中选择第一个bottle-->
+          <group select="last" > bottles </group>    <!-- 从bottle group中选择最后一个bottle-->
+        </div>
+        <object> table_plane </object>
+        <div> <!-- table legs-->
+          <object id="leg1"> table_leg </object>
+          <object id="leg2"> table_leg </object>
+          <object id="leg3"> table_leg </object>
+          <object id="leg4"> table_leg </object>
+        </div>
+      </div>
+      <object> floor </object>
+    </div>
+  </body>
+</rsml>

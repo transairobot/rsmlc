@@ -1,0 +1,14 @@
+<root>
+    <head>
+        <layout>
+# Minimal layout sheet
+[default_layout]
+space_size = ["auto", "auto", "auto"]
+        </layout>
+    </head>
+    <body>
+        <space id="main">
+            <box x_len="1m" y_len="1m" z_len="1m" static_friction="0.5" dynamic_friction="0.3" />
+        </space>
+    </body>
+</root>
