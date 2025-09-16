@@ -1,21 +1,21 @@
 use crate::auto::{Auto, Length};
-use std::str::FromStr;
 use anyhow::{Result, anyhow};
+use std::str::FromStr;
 
 /// Display属性枚举
 #[derive(Debug, Clone, PartialEq)]
 pub enum Display {
     Block,
-    Flex,
+    Stack,
 }
 
 impl FromStr for Display {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "block" => Ok(Display::Block),
-            "flex" => Ok(Display::Flex),
+            "flex" => Ok(Display::Stack),
             _ => Err(anyhow!("Invalid display value: {}", s)),
         }
     }
@@ -34,7 +34,7 @@ pub enum JustifyContent {
 
 impl FromStr for JustifyContent {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "flex-start" => Ok(JustifyContent::FlexStart),
@@ -50,20 +50,20 @@ impl FromStr for JustifyContent {
 
 /// flex-direction属性枚举
 #[derive(Debug, Clone, PartialEq)]
-pub enum FlexDirection {
+pub enum StackDirection {
     X,
     Y,
     Z,
 }
 
-impl FromStr for FlexDirection {
+impl FromStr for StackDirection {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
-            "x" => Ok(FlexDirection::X),
-            "y" => Ok(FlexDirection::Y),
-            "z" => Ok(FlexDirection::Z),
+            "x" => Ok(StackDirection::X),
+            "y" => Ok(StackDirection::Y),
+            "z" => Ok(StackDirection::Z),
             _ => Err(anyhow!("Invalid flex-direction value: {}", s)),
         }
     }
@@ -80,7 +80,7 @@ pub enum AxisPos {
 
 impl FromStr for AxisPos {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "min" => Ok(AxisPos::Min),
@@ -113,17 +113,17 @@ impl Position {
 
 impl FromStr for Position {
     type Err = anyhow::Error;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         let parts: Vec<&str> = s.trim().split_whitespace().collect();
         if parts.len() != 3 {
             return Err(anyhow!("Position must have exactly 3 values (x, y, z)"));
         }
-        
+
         let x = AxisPos::from_str(parts[0])?;
         let y = AxisPos::from_str(parts[1])?;
         let z = AxisPos::from_str(parts[2])?;
-        
+
         Ok(Position::new(x, y, z))
     }
 }
@@ -132,20 +132,20 @@ impl FromStr for Position {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
     pub size: (Auto<Length>, Auto<Length>, Auto<Length>), // size: 三个维度的尺寸 (x, y, z)
-    pub display: Display,                // display: block 或 flex
-    pub justify_content: Option<JustifyContent>,  // justify-content: 对齐方式
-    pub flex_direction: Option<FlexDirection>,    // flex-direction: x, y, z
-    pub position: Option<Position>,      // pos: 三个轴的定位
+    pub display: Display,                                 // display: block 或 flex
+    pub justify_content: Option<JustifyContent>,          // justify-content: 对齐方式
+    pub stack_direction: Option<StackDirection>,          // stack-direction: x, y, z
+    pub position: Option<Position>,                       // pos: 三个轴的定位
 }
 
 impl Default for Style {
     fn default() -> Self {
         Style {
             size: (Auto::Auto, Auto::Auto, Auto::Auto), // 默认尺寸为auto
-            display: Display::Block,         // 默认显示为block
-            justify_content: None,           // 默认无justify-content
-            flex_direction: None,            // 默认无flex-direction
-            position: None,                  // 默认无位置
+            display: Display::Block,                    // 默认显示为block
+            justify_content: None,                      // 默认无justify-content
+            stack_direction: None,                      // 默认无flex-direction
+            position: None,                             // 默认无位置
         }
     }
 }
@@ -155,43 +155,43 @@ impl Style {
     pub fn new() -> Self {
         Style::default()
     }
-    
+
     /// 获取x维度的尺寸
     pub fn size_x(&self) -> &Auto<Length> {
         &self.size.0
     }
-    
+
     /// 获取y维度的尺寸
     pub fn size_y(&self) -> &Auto<Length> {
         &self.size.1
     }
-    
+
     /// 获取z维度的尺寸
     pub fn size_z(&self) -> &Auto<Length> {
         &self.size.2
     }
-    
+
     /// 从样式字符串解析Style对象
     /// 支持格式如: "size:10m 10m 10m;display:flex;justify-content:flex-end;"
     pub fn from_style_string(style_str: &str) -> Result<Self> {
         let mut style = Style::new();
-        
+
         // 分割样式声明
         for declaration in style_str.split(';') {
             let declaration = declaration.trim();
             if declaration.is_empty() {
                 continue;
             }
-            
+
             // 分割属性名和值
             let parts: Vec<&str> = declaration.split(':').collect();
             if parts.len() != 2 {
                 return Err(anyhow!("Invalid style declaration: {}", declaration));
             }
-            
+
             let property = parts[0].trim();
             let value = parts[1].trim();
-            
+
             match property {
                 "size" => {
                     // 解析尺寸，格式如 "10m 10m 10m" 或 "auto auto auto"
@@ -199,11 +199,11 @@ impl Style {
                     if size_parts.len() != 3 {
                         return Err(anyhow!("Size must have exactly 3 values (x, y, z)"));
                     }
-                    
+
                     let x = parse_auto_length(size_parts[0])?;
                     let y = parse_auto_length(size_parts[1])?;
                     let z = parse_auto_length(size_parts[2])?;
-                    
+
                     style.size = (x, y, z);
                 }
                 "display" => {
@@ -213,7 +213,7 @@ impl Style {
                     style.justify_content = Some(JustifyContent::from_str(value)?);
                 }
                 "flex-direction" => {
-                    style.flex_direction = Some(FlexDirection::from_str(value)?);
+                    style.stack_direction = Some(StackDirection::from_str(value)?);
                 }
                 "pos" => {
                     style.position = Some(Position::from_str(value)?);
@@ -224,7 +224,7 @@ impl Style {
                 }
             }
         }
-        
+
         Ok(style)
     }
 }
@@ -260,96 +260,117 @@ fn parse_auto_length(s: &str) -> Result<Auto<Length>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_display_parsing() {
         assert_eq!(Display::from_str("block").unwrap(), Display::Block);
-        assert_eq!(Display::from_str("flex").unwrap(), Display::Flex);
+        assert_eq!(Display::from_str("stack").unwrap(), Display::Stack);
         assert!(Display::from_str("invalid").is_err());
     }
-    
+
     #[test]
     fn test_justify_content_parsing() {
-        assert_eq!(JustifyContent::from_str("flex-start").unwrap(), JustifyContent::FlexStart);
-        assert_eq!(JustifyContent::from_str("flex-end").unwrap(), JustifyContent::FlexEnd);
-        assert_eq!(JustifyContent::from_str("center").unwrap(), JustifyContent::Center);
-        assert_eq!(JustifyContent::from_str("space-between").unwrap(), JustifyContent::SpaceBetween);
-        assert_eq!(JustifyContent::from_str("space-around").unwrap(), JustifyContent::SpaceAround);
-        assert_eq!(JustifyContent::from_str("space-evenly").unwrap(), JustifyContent::SpaceEvenly);
+        assert_eq!(
+            JustifyContent::from_str("flex-start").unwrap(),
+            JustifyContent::FlexStart
+        );
+        assert_eq!(
+            JustifyContent::from_str("flex-end").unwrap(),
+            JustifyContent::FlexEnd
+        );
+        assert_eq!(
+            JustifyContent::from_str("center").unwrap(),
+            JustifyContent::Center
+        );
+        assert_eq!(
+            JustifyContent::from_str("space-between").unwrap(),
+            JustifyContent::SpaceBetween
+        );
+        assert_eq!(
+            JustifyContent::from_str("space-around").unwrap(),
+            JustifyContent::SpaceAround
+        );
+        assert_eq!(
+            JustifyContent::from_str("space-evenly").unwrap(),
+            JustifyContent::SpaceEvenly
+        );
         assert!(JustifyContent::from_str("invalid").is_err());
     }
-    
+
     #[test]
     fn test_flex_direction_parsing() {
-        assert_eq!(FlexDirection::from_str("x").unwrap(), FlexDirection::X);
-        assert_eq!(FlexDirection::from_str("y").unwrap(), FlexDirection::Y);
-        assert_eq!(FlexDirection::from_str("z").unwrap(), FlexDirection::Z);
-        assert!(FlexDirection::from_str("invalid").is_err());
+        assert_eq!(StackDirection::from_str("x").unwrap(), StackDirection::X);
+        assert_eq!(StackDirection::from_str("y").unwrap(), StackDirection::Y);
+        assert_eq!(StackDirection::from_str("z").unwrap(), StackDirection::Z);
+        assert!(StackDirection::from_str("invalid").is_err());
     }
-    
+
     #[test]
     fn test_axis_pos_parsing() {
         assert_eq!(AxisPos::from_str("min").unwrap(), AxisPos::Min);
         assert_eq!(AxisPos::from_str("max").unwrap(), AxisPos::Max);
         assert_eq!(AxisPos::from_str("random").unwrap(), AxisPos::Random);
-        assert_eq!(AxisPos::from_str("10cm").unwrap(), AxisPos::Length(Length::from_cm(10)));
+        assert_eq!(
+            AxisPos::from_str("10cm").unwrap(),
+            AxisPos::Length(Length::from_cm(10))
+        );
         assert!(AxisPos::from_str("invalid").is_err());
     }
-    
+
     #[test]
     fn test_position_parsing() {
         let pos = Position::from_str("min max 10cm").unwrap();
         assert_eq!(pos.x, AxisPos::Min);
         assert_eq!(pos.y, AxisPos::Max);
         assert_eq!(pos.z, AxisPos::Length(Length::from_cm(10)));
-        
+
         assert!(Position::from_str("min max").is_err());
         assert!(Position::from_str("min max 10cm extra").is_err());
     }
-    
+
     #[test]
     fn test_style_parsing() {
         // 测试完整的样式字符串解析
         let style_str = "size:10m 5m auto;display:flex;justify-content:flex-end;flex-direction:x;pos:min max 10cm";
         let style = Style::from_style_string(style_str).unwrap();
-        
+
         // 验证size
         assert_eq!(style.size_x(), &Auto::Value(Length::from_m(10)));
         assert_eq!(style.size_y(), &Auto::Value(Length::from_m(5)));
         assert_eq!(style.size_z(), &Auto::Auto);
-        
+
         // 验证display
-        assert_eq!(style.display, Display::Flex);
-        
+        assert_eq!(style.display, Display::Stack);
+
         // 验证justify-content
         assert_eq!(style.justify_content, Some(JustifyContent::FlexEnd));
-        
+
         // 验证flex-direction
-        assert_eq!(style.flex_direction, Some(FlexDirection::X));
-        
+        assert_eq!(style.stack_direction, Some(StackDirection::X));
+
         // 验证position
         let pos = style.position.unwrap();
         assert_eq!(pos.x, AxisPos::Min);
         assert_eq!(pos.y, AxisPos::Max);
         assert_eq!(pos.z, AxisPos::Length(Length::from_cm(10)));
     }
-    
+
     #[test]
     fn test_style_parsing_with_defaults() {
         // 测试只包含部分属性的样式字符串
         let style_str = "display:block";
         let style = Style::from_style_string(style_str).unwrap();
-        
+
         // 验证默认值
         assert_eq!(style.display, Display::Block);
         assert_eq!(style.size_x(), &Auto::Auto);
         assert_eq!(style.size_y(), &Auto::Auto);
         assert_eq!(style.size_z(), &Auto::Auto);
         assert_eq!(style.justify_content, None);
-        assert_eq!(style.flex_direction, None);
+        assert_eq!(style.stack_direction, None);
         assert_eq!(style.position, None);
     }
-    
+
     #[test]
     fn test_invalid_style_parsing() {
         // 测试无效的样式字符串

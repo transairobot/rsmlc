@@ -2,12 +2,22 @@ pub mod auto;
 mod style;
 mod xml_parser;
 mod render_tree;
+mod package;
 
 use anyhow::Result;
 use xml_parser::{parse_xml_file, Element};
-use render_tree::{build_render_tree, print_render_tree};
+use render_tree::{build_render_tree, precalculate};
+use package::Package;
 
 fn main() -> Result<()> {
+    // 解析package.toml文件
+    let package = Package::from_file("package.toml")?;
+    println!("Package configuration loaded successfully!");
+    println!("Dependencies: {:?}", package.dependencies.keys().collect::<Vec<_>>());
+    println!("Objects: {:?}", package.objects.keys().collect::<Vec<_>>());
+    println!("Groups: {:?}", package.groups.iter().map(|g| &g.name).collect::<Vec<_>>());
+    println!();
+    
     // 解析RSML XML文件
     let root_element = parse_xml_file("rsml_example.xml")?;
     
@@ -22,13 +32,17 @@ fn main() -> Result<()> {
     println!("\n正在构建渲染树...");
     let render_tree = build_render_tree(&root_element)?;
     
+    // 预计算content_size
+    println!("\n正在预计算content_size...");
+    precalculate(&render_tree, &package)?;
+    
     // 计算布局
     println!("\n正在计算布局...");
     render_tree::calculate_layout(&render_tree)?;
     
     // 打印渲染树
     println!("\n渲染树:");
-    print_render_tree(&render_tree, 0);
+    crate::render_tree::print_render_tree_computed(&render_tree, 0);
     
     println!("\nXML文件解析、渲染树构建和布局计算成功完成！");
     

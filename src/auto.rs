@@ -188,6 +188,55 @@ impl<'de> Deserialize<'de> for Length {
     }
 }
 
+impl std::ops::Add for Length {
+    type Output = Length;
+
+    fn add(self, other: Length) -> Length {
+        Length(self.0.saturating_add(other.0))
+    }
+}
+
+impl std::ops::Sub for Length {
+    type Output = Length;
+
+    fn sub(self, other: Length) -> Length {
+        Length(self.0.saturating_sub(other.0))
+    }
+}
+
+impl std::ops::Mul<u32> for Length {
+    type Output = Length;
+
+    fn mul(self, scalar: u32) -> Length {
+        Length(self.0.saturating_mul(scalar))
+    }
+}
+
+impl std::ops::Div<u32> for Length {
+    type Output = Length;
+
+    fn div(self, scalar: u32) -> Length {
+        if scalar == 0 {
+            // Avoid division by zero
+            Length(0)
+        } else {
+            Length(self.0 / scalar)
+        }
+    }
+}
+
+impl std::ops::AddAssign for Length {
+    fn add_assign(&mut self, other: Length) {
+        self.0 = self.0.saturating_add(other.0);
+    }
+}
+
+impl std::iter::Sum for Length {
+    fn sum<I: Iterator<Item = Length>>(iter: I) -> Length {
+        iter.fold(Length(0), |acc, x| acc + x)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +371,31 @@ mod length_tests {
         // Test empty string
         let result: Result<Length, _> = "".parse();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_length_sum() {
+        let lengths = vec![Length::from_mm(100), Length::from_mm(200), Length::from_mm(300)];
+        let total: Length = lengths.iter().copied().sum();
+        assert_eq!(total, Length::from_mm(600));
+        
+        // Test with empty iterator
+        let empty: Vec<Length> = vec![];
+        let total: Length = empty.iter().copied().sum();
+        assert_eq!(total, Length::from_mm(0));
+    }
+
+    #[test]
+    fn test_length_add_assign() {
+        let mut len1 = Length::from_mm(100);
+        let len2 = Length::from_mm(200);
+        
+        len1 += len2;
+        assert_eq!(len1, Length::from_mm(300));
+        
+        // Test saturation
+        let mut len_max = Length(u32::MAX);
+        len_max += Length::from_mm(1);
+        assert_eq!(len_max, Length(u32::MAX));
     }
 }

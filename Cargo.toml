@@ -3,6 +3,10 @@ name = "rsmlc"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "rsmlc"
+path = "src/lib.rs"
+
 [dependencies]
 anyhow = "1.0.99"
 quick-xml = {version = "0.38.3", features = ["serialize"] }
@@ -25,3 +29,11 @@ path = "examples/geom_demo.rs"
 [[example]]
 name = "style_demo"
 path = "examples/style_demo.rs"
+
+[[example]]
+name = "package_example"
+path = "examples/package_example.rs"
+
+[[bin]]
+name = "rsmlc"
+path = "src/main.rs"
