@@ -78,54 +78,6 @@ impl<T> Default for Auto<T> {
     }
 }
 
-/// A size structure with three dimensions, each of which can be either a specific value or auto.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Size(pub Auto<f32>, pub Auto<f32>, pub Auto<f32>);
-
-impl Size {
-    /// Create a new Size with all dimensions set to Auto
-    pub fn auto() -> Self {
-        Size(Auto::Auto, Auto::Auto, Auto::Auto)
-    }
-
-    /// Create a new Size with specific values
-    pub fn new(x: Auto<f32>, y: Auto<f32>, z: Auto<f32>) -> Self {
-        Size(x, y, z)
-    }
-
-    /// Get the x dimension
-    pub fn x(&self) -> &Auto<f32> {
-        &self.0
-    }
-
-    /// Get the y dimension
-    pub fn y(&self) -> &Auto<f32> {
-        &self.1
-    }
-
-    /// Get the z dimension
-    pub fn z(&self) -> &Auto<f32> {
-        &self.2
-    }
-}
-
-impl Default for Size {
-    fn default() -> Self {
-        Size::auto()
-    }
-}
-
-impl<'de> Deserialize<'de> for Size {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // Deserialize as a tuple of three Auto<f32> values
-        let (x, y, z) = <(Auto<f32>, Auto<f32>, Auto<f32>)>::deserialize(deserializer)?;
-        Ok(Size(x, y, z))
-    }
-}
-
 /// A length structure with millimeters as the base unit, stored as u32
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Length(u32);
@@ -279,36 +231,6 @@ mod tests {
         assert_eq!(value.as_value(), Some(&42));
         // Clone for the second assertion since value() takes ownership
         assert_eq!(value.clone().value(), Some(42));
-    }
-}
-
-#[cfg(test)]
-mod size_tests {
-    use super::*;
-
-    #[test]
-    fn test_size_creation() {
-        let size = Size::auto();
-        assert_eq!(size.x(), &Auto::Auto);
-        assert_eq!(size.y(), &Auto::Auto);
-        assert_eq!(size.z(), &Auto::Auto);
-
-        let size = Size::new(
-            Auto::Value(1.0),
-            Auto::Value(2.0),
-            Auto::Value(3.0),
-        );
-        assert_eq!(size.x(), &Auto::Value(1.0));
-        assert_eq!(size.y(), &Auto::Value(2.0));
-        assert_eq!(size.z(), &Auto::Value(3.0));
-    }
-
-    #[test]
-    fn test_size_default() {
-        let size = Size::default();
-        assert_eq!(size.x(), &Auto::Auto);
-        assert_eq!(size.y(), &Auto::Auto);
-        assert_eq!(size.z(), &Auto::Auto);
     }
 }
 

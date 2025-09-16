@@ -21,3 +21,7 @@ path = "examples/length_demo.rs"
 [[example]]
 name = "geom_demo"
 path = "examples/geom_demo.rs"
+
+[[example]]
+name = "style_demo"
+path = "examples/style_demo.rs"
