@@ -10,6 +10,7 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1.0.99"
 quick-xml = {version = "0.38.3", features = ["serialize"] }
+rand = "0.9.2"
 serde = { version = "1.0.221", features = ["derive"] }
 thiserror = "2.0.16"
 toml = "0.9.5"
@@ -25,10 +26,6 @@ path = "examples/length_demo.rs"
 [[example]]
 name = "geom_demo"
 path = "examples/geom_demo.rs"
-
-[[example]]
-name = "style_demo"
-path = "examples/style_demo.rs"
 
 [[example]]
 name = "package_example"

@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use crate::dim3::Dim3;
+use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
@@ -40,7 +41,7 @@ impl Object {
     }
 
     /// 解析对象的空间尺寸
-    pub fn space_size(&self) -> Result<(Length, Length, Length)> {
+    pub fn space_size(&self) -> Result<Dim3<Length>> {
         let parts: Vec<&str> = self.size.split_whitespace().collect();
         if parts.len() != 3 {
             return Err(anyhow!("Invalid size format: {}", self.size));
@@ -50,7 +51,7 @@ impl Object {
         let y = Length::from_str(parts[1]).map_err(|e| anyhow!("Failed to parse y size: {}", e))?;
         let z = Length::from_str(parts[2]).map_err(|e| anyhow!("Failed to parse z size: {}", e))?;
 
-        Ok((x, y, z))
+        Ok(Dim3::new(x, y, z))
     }
 }
 
@@ -73,7 +74,7 @@ impl Group {
     }
 
     /// 解析组的空间尺寸，计算组内所有对象的最大包围盒
-    pub fn space_size(&self, package: &Package) -> Result<(Length, Length, Length)> {
+    pub fn space_size(&self, package: &Package) -> Result<Dim3<Length>> {
         let mut max_x = Length::from_mm(0);
         let mut max_y = Length::from_mm(0);
         let mut max_z = Length::from_mm(0);
@@ -82,10 +83,10 @@ impl Group {
         for item_name in &self.items {
             // 尝试查找对象
             if let Some(object) = package.get_object(item_name) {
-                let (x, y, z) = object.space_size()?;
-                max_x = if x > max_x { x } else { max_x };
-                max_y = if y > max_y { y } else { max_y };
-                max_z = if z > max_z { z } else { max_z };
+                let size = object.space_size()?;
+                max_x = if size.x > max_x { size.x } else { max_x };
+                max_y = if size.y > max_y { size.y } else { max_y };
+                max_z = if size.z > max_z { size.z } else { max_z };
             }
             // 尝试查找依赖项（这里简化处理，实际可能需要更复杂的逻辑）
             else if let Some(_dependency) = package.get_dependency(item_name) {
@@ -99,7 +100,7 @@ impl Group {
             }
         }
 
-        Ok((max_x, max_y, max_z))
+        Ok(Dim3::new(max_x, max_y, max_z))
     }
 }
 

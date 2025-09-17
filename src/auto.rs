@@ -126,18 +126,24 @@ impl fmt::Display for Length {
     }
 }
 
+impl Default for Length {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
 impl FromStr for Length {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Trim whitespace
         let s = s.trim();
-        
+
         // Check if string is empty
         if s.is_empty() {
             return Err("Empty string".to_string());
         }
-        
+
         // Find the position where the number ends and the unit begins
         let mut split_pos = s.len();
         for (i, ch) in s.char_indices() {
@@ -146,11 +152,13 @@ impl FromStr for Length {
                 break;
             }
         }
-        
+
         // Parse the number part
         let number_str = &s[..split_pos];
-        let number: f64 = number_str.parse().map_err(|_| format!("Invalid number: {}", number_str))?;
-        
+        let number: f64 = number_str
+            .parse()
+            .map_err(|_| format!("Invalid number: {}", number_str))?;
+
         // Parse the unit part (trim leading whitespace)
         let unit_str = &s[split_pos..].trim_start().to_lowercase();
         let multiplier = match unit_str.as_str() {
@@ -160,20 +168,20 @@ impl FromStr for Length {
             "" => 1.0, // Default to mm if no unit specified
             _ => return Err(format!("Unknown unit: {}", unit_str)),
         };
-        
+
         // Calculate the value in mm
         let mm_value = number * multiplier;
-        
+
         // Check for negative values
         if mm_value < 0.0 {
             return Err("Length cannot be negative".to_string());
         }
-        
+
         // Convert to u32, checking for overflow
         if mm_value > u32::MAX as f64 {
             return Err("Length value too large".to_string());
         }
-        
+
         Ok(Length(mm_value as u32))
     }
 }
@@ -375,10 +383,14 @@ mod length_tests {
 
     #[test]
     fn test_length_sum() {
-        let lengths = vec![Length::from_mm(100), Length::from_mm(200), Length::from_mm(300)];
+        let lengths = vec![
+            Length::from_mm(100),
+            Length::from_mm(200),
+            Length::from_mm(300),
+        ];
         let total: Length = lengths.iter().copied().sum();
         assert_eq!(total, Length::from_mm(600));
-        
+
         // Test with empty iterator
         let empty: Vec<Length> = vec![];
         let total: Length = empty.iter().copied().sum();
@@ -389,10 +401,10 @@ mod length_tests {
     fn test_length_add_assign() {
         let mut len1 = Length::from_mm(100);
         let len2 = Length::from_mm(200);
-        
+
         len1 += len2;
         assert_eq!(len1, Length::from_mm(300));
-        
+
         // Test saturation
         let mut len_max = Length(u32::MAX);
         len_max += Length::from_mm(1);

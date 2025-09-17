@@ -1,5 +1,7 @@
 use crate::auto::{Auto, Length};
-use anyhow::{Result, anyhow};
+use crate::dim3::Dim3;
+use anyhow::{anyhow, Result};
+use rand::Rng;
 use std::str::FromStr;
 
 /// Display属性枚举
@@ -15,7 +17,7 @@ impl FromStr for Display {
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "block" => Ok(Display::Block),
-            "flex" => Ok(Display::Stack),
+            "flex" | "stack" => Ok(Display::Stack),
             _ => Err(anyhow!("Invalid display value: {}", s)),
         }
     }
@@ -78,6 +80,24 @@ pub enum AxisPos {
     Length(Length),
 }
 
+impl AxisPos {
+    pub fn absolute_pos(&self, min: Length, max: Length) -> Length {
+        match self {
+            AxisPos::Min => min,
+            AxisPos::Max => max,
+            AxisPos::Random => {
+                // 生成min和max之间的随机值
+                let min_val = min.mm();
+                let max_val = max.mm();
+                let mut rng = rand::thread_rng();
+                let rand_val = rng.gen_range(min_val..=max_val);
+                Length::from_mm(rand_val)
+            }
+            AxisPos::Length(length) => *length,
+        }
+    }
+}
+
 impl FromStr for AxisPos {
     type Err = anyhow::Error;
 
@@ -97,55 +117,27 @@ impl FromStr for AxisPos {
     }
 }
 
-/// Position结构体，包含三个轴的定位信息
-#[derive(Debug, Clone, PartialEq)]
-pub struct Position {
-    pub x: AxisPos,
-    pub y: AxisPos,
-    pub z: AxisPos,
-}
-
-impl Position {
-    pub fn new(x: AxisPos, y: AxisPos, z: AxisPos) -> Self {
-        Position { x, y, z }
-    }
-}
-
-impl FromStr for Position {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        let parts: Vec<&str> = s.trim().split_whitespace().collect();
-        if parts.len() != 3 {
-            return Err(anyhow!("Position must have exactly 3 values (x, y, z)"));
-        }
-
-        let x = AxisPos::from_str(parts[0])?;
-        let y = AxisPos::from_str(parts[1])?;
-        let z = AxisPos::from_str(parts[2])?;
-
-        Ok(Position::new(x, y, z))
-    }
-}
+/// Position类型，支持每个轴的定位，与size一样支持auto
+pub type Position = (Auto<AxisPos>, Auto<AxisPos>, Auto<AxisPos>);
 
 /// Style结构体，包含所有支持的样式属性
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
-    pub size: (Auto<Length>, Auto<Length>, Auto<Length>), // size: 三个维度的尺寸 (x, y, z)
+    pub size: Dim3<Auto<Length>>, // size: 三个维度的尺寸 (x, y, z)
     pub display: Display,                                 // display: block 或 flex
     pub justify_content: Option<JustifyContent>,          // justify-content: 对齐方式
     pub stack_direction: Option<StackDirection>,          // stack-direction: x, y, z
-    pub position: Option<Position>,                       // pos: 三个轴的定位
+    pub position: Position,                               // pos: 三个轴的定位
 }
 
 impl Default for Style {
     fn default() -> Self {
         Style {
-            size: (Auto::Auto, Auto::Auto, Auto::Auto), // 默认尺寸为auto
+            size: Dim3::new(Auto::Auto, Auto::Auto, Auto::Auto), // 默认尺寸为auto
             display: Display::Block,                    // 默认显示为block
             justify_content: None,                      // 默认无justify-content
             stack_direction: None,                      // 默认无flex-direction
-            position: None,                             // 默认无位置
+            position: (Auto::Auto, Auto::Auto, Auto::Auto), // 默认位置为auto
         }
     }
 }
@@ -158,17 +150,32 @@ impl Style {
 
     /// 获取x维度的尺寸
     pub fn size_x(&self) -> &Auto<Length> {
-        &self.size.0
+        &self.size.x
     }
 
     /// 获取y维度的尺寸
     pub fn size_y(&self) -> &Auto<Length> {
-        &self.size.1
+        &self.size.y
     }
 
     /// 获取z维度的尺寸
     pub fn size_z(&self) -> &Auto<Length> {
-        &self.size.2
+        &self.size.z
+    }
+
+    /// 获取x维度的位置
+    pub fn position_x(&self) -> &Auto<AxisPos> {
+        &self.position.0
+    }
+
+    /// 获取y维度的位置
+    pub fn position_y(&self) -> &Auto<AxisPos> {
+        &self.position.1
+    }
+
+    /// 获取z维度的位置
+    pub fn position_z(&self) -> &Auto<AxisPos> {
+        &self.position.2
     }
 
     /// 从样式字符串解析Style对象
@@ -204,7 +211,7 @@ impl Style {
                     let y = parse_auto_length(size_parts[1])?;
                     let z = parse_auto_length(size_parts[2])?;
 
-                    style.size = (x, y, z);
+                    style.size = Dim3::new(x, y, z);
                 }
                 "display" => {
                     style.display = Display::from_str(value)?;
@@ -216,7 +223,17 @@ impl Style {
                     style.stack_direction = Some(StackDirection::from_str(value)?);
                 }
                 "pos" => {
-                    style.position = Some(Position::from_str(value)?);
+                    // 解析位置，格式如 "min max 10cm" 或 "auto auto auto"
+                    let pos_parts: Vec<&str> = value.split_whitespace().collect();
+                    if pos_parts.len() != 3 {
+                        return Err(anyhow!("Position must have exactly 3 values (x, y, z)"));
+                    }
+
+                    let x = parse_auto_axis_pos(pos_parts[0])?;
+                    let y = parse_auto_axis_pos(pos_parts[1])?;
+                    let z = parse_auto_axis_pos(pos_parts[2])?;
+
+                    style.position = (x, y, z);
                 }
                 _ => {
                     // 忽略未知属性而不是报错，以提高兼容性
@@ -232,15 +249,15 @@ impl Style {
 /// 计算后的样式，包含绝对的尺寸和位置
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComputedStyle {
-    pub size: (Length, Length, Length),
-    pub pos: (Length, Length, Length),
+    pub size: Dim3<Length>,
+    pub pos: Dim3<Length>,
 }
 
 impl Default for ComputedStyle {
     fn default() -> Self {
         Self {
-            size: (Length::from_m(0), Length::from_m(0), Length::from_m(0)),
-            pos: (Length::from_m(0), Length::from_m(0), Length::from_m(0)),
+            size: Dim3::default(),
+            pos: Dim3::default(),
         }
     }
 }
@@ -253,6 +270,18 @@ fn parse_auto_length(s: &str) -> Result<Auto<Length>> {
         match Length::from_str(s) {
             Ok(length) => Ok(Auto::Value(length)),
             Err(e) => Err(anyhow!("Invalid length value '{}': {}", s, e)),
+        }
+    }
+}
+
+/// 解析Auto<AxisPos>值
+fn parse_auto_axis_pos(s: &str) -> Result<Auto<AxisPos>> {
+    if s.to_lowercase() == "auto" {
+        Ok(Auto::Auto)
+    } else {
+        match AxisPos::from_str(s) {
+            Ok(pos) => Ok(Auto::Value(pos)),
+            Err(e) => Err(anyhow!("Invalid position value '{}': {}", s, e)),
         }
     }
 }
@@ -318,17 +347,6 @@ mod tests {
     }
 
     #[test]
-    fn test_position_parsing() {
-        let pos = Position::from_str("min max 10cm").unwrap();
-        assert_eq!(pos.x, AxisPos::Min);
-        assert_eq!(pos.y, AxisPos::Max);
-        assert_eq!(pos.z, AxisPos::Length(Length::from_cm(10)));
-
-        assert!(Position::from_str("min max").is_err());
-        assert!(Position::from_str("min max 10cm extra").is_err());
-    }
-
-    #[test]
     fn test_style_parsing() {
         // 测试完整的样式字符串解析
         let style_str = "size:10m 5m auto;display:flex;justify-content:flex-end;flex-direction:x;pos:min max 10cm";
@@ -349,10 +367,12 @@ mod tests {
         assert_eq!(style.stack_direction, Some(StackDirection::X));
 
         // 验证position
-        let pos = style.position.unwrap();
-        assert_eq!(pos.x, AxisPos::Min);
-        assert_eq!(pos.y, AxisPos::Max);
-        assert_eq!(pos.z, AxisPos::Length(Length::from_cm(10)));
+        assert_eq!(style.position_x(), &Auto::Value(AxisPos::Min));
+        assert_eq!(style.position_y(), &Auto::Value(AxisPos::Max));
+        assert_eq!(
+            style.position_z(),
+            &Auto::Value(AxisPos::Length(Length::from_cm(10)))
+        );
     }
 
     #[test]
@@ -368,7 +388,10 @@ mod tests {
         assert_eq!(style.size_z(), &Auto::Auto);
         assert_eq!(style.justify_content, None);
         assert_eq!(style.stack_direction, None);
-        assert_eq!(style.position, None);
+        // 验证position默认值为auto
+        assert_eq!(style.position_x(), &Auto::Auto);
+        assert_eq!(style.position_y(), &Auto::Auto);
+        assert_eq!(style.position_z(), &Auto::Auto);
     }
 
     #[test]
