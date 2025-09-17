@@ -1,6 +1,6 @@
 use crate::auto::{Auto, Length};
 use crate::dim3::Dim3;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use rand::Rng;
 use std::str::FromStr;
 
@@ -8,7 +8,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Display {
     Block,
-    Stack,
+    Flex,
 }
 
 impl FromStr for Display {
@@ -17,7 +17,7 @@ impl FromStr for Display {
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "block" => Ok(Display::Block),
-            "flex" | "stack" => Ok(Display::Stack),
+            "flex" | "flex" => Ok(Display::Flex),
             _ => Err(anyhow!("Invalid display value: {}", s)),
         }
     }
@@ -52,20 +52,32 @@ impl FromStr for JustifyContent {
 
 /// flex-direction属性枚举
 #[derive(Debug, Clone, PartialEq)]
-pub enum StackDirection {
+pub enum FlexDirection {
     X,
     Y,
     Z,
+    ReverseX,
+    ReverseY,
+    ReverseZ,
 }
 
-impl FromStr for StackDirection {
+impl Default for FlexDirection {
+    fn default() -> Self {
+        Self::ReverseZ
+    }
+}
+
+impl FromStr for FlexDirection {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
-            "x" => Ok(StackDirection::X),
-            "y" => Ok(StackDirection::Y),
-            "z" => Ok(StackDirection::Z),
+            "x" => Ok(FlexDirection::X),
+            "y" => Ok(FlexDirection::Y),
+            "z" => Ok(FlexDirection::Z),
+            "x-reverse" => Ok(FlexDirection::ReverseX),
+            "y-reverse" => Ok(FlexDirection::ReverseY),
+            "z-reverse" => Ok(FlexDirection::ReverseZ),
             _ => Err(anyhow!("Invalid flex-direction value: {}", s)),
         }
     }
@@ -124,20 +136,20 @@ pub type Position = (Auto<AxisPos>, Auto<AxisPos>, Auto<AxisPos>);
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
     pub size: Dim3<Auto<Length>>, // size: 三个维度的尺寸 (x, y, z)
-    pub display: Display,                                 // display: block 或 flex
-    pub justify_content: Option<JustifyContent>,          // justify-content: 对齐方式
-    pub stack_direction: Option<StackDirection>,          // stack-direction: x, y, z
-    pub position: Position,                               // pos: 三个轴的定位
+    pub display: Display,         // display: block 或 flex
+    pub justify_content: Option<JustifyContent>, // justify-content: 对齐方式
+    pub flex_direction: FlexDirection, // flex-direction: x, y, z
+    pub position: Position,       // pos: 三个轴的定位
 }
 
 impl Default for Style {
     fn default() -> Self {
         Style {
             size: Dim3::new(Auto::Auto, Auto::Auto, Auto::Auto), // 默认尺寸为auto
-            display: Display::Block,                    // 默认显示为block
-            justify_content: None,                      // 默认无justify-content
-            stack_direction: None,                      // 默认无flex-direction
-            position: (Auto::Auto, Auto::Auto, Auto::Auto), // 默认位置为auto
+            display: Display::Block,                             // 默认显示为block
+            justify_content: None,                               // 默认无justify-content
+            flex_direction: FlexDirection::default(),            // 默认无flex-direction
+            position: (Auto::Auto, Auto::Auto, Auto::Auto),      // 默认位置为auto
         }
     }
 }
@@ -220,7 +232,7 @@ impl Style {
                     style.justify_content = Some(JustifyContent::from_str(value)?);
                 }
                 "flex-direction" => {
-                    style.stack_direction = Some(StackDirection::from_str(value)?);
+                    style.flex_direction = FlexDirection::from_str(value)?;
                 }
                 "pos" => {
                     // 解析位置，格式如 "min max 10cm" 或 "auto auto auto"
@@ -293,7 +305,7 @@ mod tests {
     #[test]
     fn test_display_parsing() {
         assert_eq!(Display::from_str("block").unwrap(), Display::Block);
-        assert_eq!(Display::from_str("stack").unwrap(), Display::Stack);
+        assert_eq!(Display::from_str("flex").unwrap(), Display::Flex);
         assert!(Display::from_str("invalid").is_err());
     }
 
@@ -328,10 +340,10 @@ mod tests {
 
     #[test]
     fn test_flex_direction_parsing() {
-        assert_eq!(StackDirection::from_str("x").unwrap(), StackDirection::X);
-        assert_eq!(StackDirection::from_str("y").unwrap(), StackDirection::Y);
-        assert_eq!(StackDirection::from_str("z").unwrap(), StackDirection::Z);
-        assert!(StackDirection::from_str("invalid").is_err());
+        assert_eq!(FlexDirection::from_str("x").unwrap(), FlexDirection::X);
+        assert_eq!(FlexDirection::from_str("y").unwrap(), FlexDirection::Y);
+        assert_eq!(FlexDirection::from_str("z").unwrap(), FlexDirection::Z);
+        assert!(FlexDirection::from_str("invalid").is_err());
     }
 
     #[test]
@@ -358,13 +370,13 @@ mod tests {
         assert_eq!(style.size_z(), &Auto::Auto);
 
         // 验证display
-        assert_eq!(style.display, Display::Stack);
+        assert_eq!(style.display, Display::Flex);
 
         // 验证justify-content
         assert_eq!(style.justify_content, Some(JustifyContent::FlexEnd));
 
         // 验证flex-direction
-        assert_eq!(style.stack_direction, Some(StackDirection::X));
+        assert_eq!(style.flex_direction, FlexDirection::X);
 
         // 验证position
         assert_eq!(style.position_x(), &Auto::Value(AxisPos::Min));
@@ -387,7 +399,7 @@ mod tests {
         assert_eq!(style.size_y(), &Auto::Auto);
         assert_eq!(style.size_z(), &Auto::Auto);
         assert_eq!(style.justify_content, None);
-        assert_eq!(style.stack_direction, None);
+        assert_eq!(style.flex_direction, FlexDirection::default());
         // 验证position默认值为auto
         assert_eq!(style.position_x(), &Auto::Auto);
         assert_eq!(style.position_y(), &Auto::Auto);

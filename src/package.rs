@@ -81,23 +81,11 @@ impl Group {
 
         // 遍历组内的所有项目
         for item_name in &self.items {
-            // 尝试查找对象
-            if let Some(object) = package.get_object(item_name) {
-                let size = object.space_size()?;
-                max_x = if size.x > max_x { size.x } else { max_x };
-                max_y = if size.y > max_y { size.y } else { max_y };
-                max_z = if size.z > max_z { size.z } else { max_z };
-            }
-            // 尝试查找依赖项（这里简化处理，实际可能需要更复杂的逻辑）
-            else if let Some(_dependency) = package.get_dependency(item_name) {
-                // 对于依赖项，我们使用默认尺寸
-                let x = Length::from_cm(5);
-                let y = Length::from_cm(5);
-                let z = Length::from_cm(5);
-                max_x = if x > max_x { x } else { max_x };
-                max_y = if y > max_y { y } else { max_y };
-                max_z = if z > max_z { z } else { max_z };
-            }
+            // 尝试查找对象或组
+            let size = package.get_space_size(item_name)?;
+            max_x = if size.x > max_x { size.x } else { max_x };
+            max_y = if size.y > max_y { size.y } else { max_y };
+            max_z = if size.z > max_z { size.z } else { max_z };
         }
 
         Ok(Dim3::new(max_x, max_y, max_z))
@@ -153,6 +141,17 @@ impl Package {
     /// 获取组
     pub fn get_group(&self, name: &str) -> Option<&Group> {
         self.groups.iter().find(|group| group.name == name)
+    }
+
+    /// 获取对象或组的空间尺寸
+    pub fn get_space_size(&self, name: &str) -> Result<Dim3<Length>> {
+        if let Some(object) = self.get_object(name) {
+            return object.space_size();
+        }
+        if let Some(group) = self.get_group(name) {
+            return group.space_size(self);
+        }
+        Err(anyhow!("Object or group with name '{}' not found in package", name))
     }
 
     /// 检查是否存在指定的依赖项
@@ -258,5 +257,24 @@ mod tests {
         let bottles_group = package.get_group("bottles").unwrap();
         assert_eq!(bottles_group.name(), "bottles");
         assert_eq!(bottles_group.items(), &["box_bottle", "bottle"]);
+    }
+
+    #[test]
+    fn test_get_space_size() {
+        let package = Package::from_file("package.toml").expect("Failed to parse package.toml");
+
+        // Test getting size of an object
+        let table_plane_size = package.get_space_size("table_plane").unwrap();
+        assert_eq!(table_plane_size.x, Length::from_m(1));
+        assert_eq!(table_plane_size.y, Length::from_m(1));
+        assert_eq!(table_plane_size.z, Length::from_cm(10));
+
+        // Test getting size of a group that contains a dependency (should fail)
+        let bottles_group_result = package.get_space_size("bottles");
+        assert!(bottles_group_result.is_err());
+
+        // Test not found
+        let result = package.get_space_size("nonexistent");
+        assert!(result.is_err());
     }
 }

@@ -7,7 +7,7 @@ mod dim3;
 
 use anyhow::Result;
 use xml_parser::{parse_xml_file, Element};
-use render_tree::{build_render_tree};
+use render_tree::RenderTree;
 use package::Package;
 
 fn main() -> Result<()> {
@@ -31,17 +31,17 @@ fn main() -> Result<()> {
     
     // 构建渲染树
     println!("\n正在构建渲染树...");
-    let render_tree = build_render_tree(&root_element)?;
+    let render_tree = RenderTree::new(&root_element, &package)?;
     
-    // 预计算content_size
-    println!("\n正在预计算content_size...");
-    // precalculate(&render_tree, &package)?;
+    // 计算尺寸和布局
+    println!("\n正在计算尺寸和布局...");
+    render_tree.calculate()?;
     
-    // 计算布局
-    println!("\n正在计算布局...");
-    // render_tree::calculate_layout(&render_tree)?;
+    // 打印渲染树
+    println!("\n渲染树:");
+    render_tree.print_computed();
     
-    // 打印渲染树\n    println!(\"\n渲染树:\");\n    print_render_tree(&render_tree, 0);\n    \n    println!(\"\nXML文件解析、渲染树构建和布局计算成功完成！\");
+    println!("\nXML文件解析、渲染树构建和布局计算成功完成！");
     
     Ok(())
 }
@@ -58,7 +58,7 @@ fn print_element(element: &Element, depth: usize) {
         let mut first = true;
         for (key, value) in &element.attributes {
             if !first {
-                print!(", ");
+                print!( ", ");
             }
             print!("{}=\"{}\"", key, value);
             first = false;

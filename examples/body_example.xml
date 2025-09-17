@@ -1,0 +1,13 @@
+<root>
+  <header style="size:10cm 5cm 1cm">
+    <object>box</object>
+  </header>
+  <body style="size:20cm 10cm 5cm">
+    <space id="main" style="display:block;size:15cm 8cm 3cm">
+      <object>box</object>
+    </space>
+  </body>
+  <footer style="size:10cm 5cm 1cm">
+    <object>box</object>
+  </footer>
+</root>

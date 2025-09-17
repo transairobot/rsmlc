@@ -1,7 +1,7 @@
 use crate::auto::{Auto, Length};
 use crate::dim3::Dim3;
 use crate::package::Package;
-use crate::style::{self, ComputedStyle, Style};
+use crate::style::{self, ComputedStyle, FlexDirection, Style};
 use crate::xml_parser::Element;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -9,10 +9,8 @@ use std::rc::{Rc, Weak};
 /// 渲染节点类型枚举
 #[derive(Debug, Clone, PartialEq)]
 pub enum RenderNodeType {
-    Space,
-    Object,
-    Group,
-    Unknown,
+    Space, // 除了group和object的其他tag
+    Item,  // Group and Object
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -22,21 +20,9 @@ struct AbsoluteSpace {
 
 #[derive(Debug, Default, Clone)]
 pub struct NodeAttr {
-    content_size: Dim3<Length>,
-    absolute_pos: Dim3<Length>,
-    flex_child_space: Vec<AbsoluteSpace>,
-}
-
-impl NodeAttr {
-    /// 获取content_size
-    pub fn content_size(&self) -> Dim3<Length> {
-        self.content_size
-    }
-
-    /// 设置content_size
-    pub fn set_content_size(&mut self, size: Dim3<Length>) {
-        self.content_size = size;
-    }
+    pub absolute_size: Dim3<Length>,
+    pub absolute_pos: Dim3<Length>,
+    pub flex_child_space: Vec<AbsoluteSpace>,
 }
 
 /// 渲染节点结构体
@@ -124,12 +110,36 @@ impl<'a> RenderTree<'a> {
     }
 
     pub fn calculate(&self) -> Result<(), anyhow::Error> {
-        self.calculate_size_recursive(&self.root)?;
-        self.calculate_pos_recursive(&self.root)?;
+        // Find the body node and start position calculation from there
+        if let Some(body_node) = self.find_body_node(&self.root) {
+            self.calculate_size_recursive(&body_node)?;
+            self.calculate_pos_recursive(&body_node)?;
+        }
         Ok(())
     }
 
-    fn build_node_recursive(dom_element: &Element) -> Result<Rc<RefCell<RenderNode>>, anyhow::Error> {
+    /// Find the body node in the render tree
+    fn find_body_node(&self, node: &Rc<RefCell<RenderNode>>) -> Option<Rc<RefCell<RenderNode>>> {
+        let node_ref = node.borrow();
+
+        // Check if current node is body
+        if node_ref.tag_name == "body" {
+            return Some(node.clone());
+        }
+
+        // Recursively search in children
+        for child in &node_ref.children {
+            if let Some(body_node) = self.find_body_node(child) {
+                return Some(body_node);
+            }
+        }
+
+        None
+    }
+
+    fn build_node_recursive(
+        dom_element: &Element,
+    ) -> Result<Rc<RefCell<RenderNode>>, anyhow::Error> {
         let node_type = determine_node_type(&dom_element.name);
         let mut render_node = RenderNode::new(dom_element.name.clone(), node_type);
 
@@ -140,15 +150,29 @@ impl<'a> RenderTree<'a> {
         if !dom_element.text.trim().is_empty() {
             render_node.set_text_content(dom_element.text.trim().to_string());
         }
+        let space_style = "display:flex;flex-direction:z-reverse";
+        let item_style = "display:block";
+        let body_style = "display:flex;flex-direction:z-reverse;size=100m 100m 100m";
 
-        if let Some(style_str) = dom_element.get_attribute("style") {
-            match Style::from_style_string(style_str) {
-                Ok(style) => render_node.set_specified_style(style),
-                Err(e) => eprintln!(
-                    "Warning: Failed to parse style for element '{}': {}",
-                    dom_element.name, e
-                ),
-            }
+        let mut style = dom_element
+            .attributes
+            .get("style")
+            .cloned()
+            .unwrap_or_default();
+        if render_node.tag_name == "body" {
+            style = body_style.to_owned();
+        }
+        match render_node.node_type {
+            RenderNodeType::Space => style = format!("{};{}", space_style, style),
+            RenderNodeType::Item => style = format!("{};{}", item_style, style),
+        }
+
+        match Style::from_style_string(&style) {
+            Ok(style) => render_node.set_specified_style(style),
+            Err(e) => eprintln!(
+                "Warning: Failed to parse style for element '{}': {}",
+                dom_element.name, e
+            ),
         }
 
         let rc_node = Rc::new(RefCell::new(render_node));
@@ -161,7 +185,10 @@ impl<'a> RenderTree<'a> {
         Ok(rc_node)
     }
 
-    fn calculate_size_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> Result<(), anyhow::Error> {
+    fn calculate_size_recursive(
+        &self,
+        node: &Rc<RefCell<RenderNode>>,
+    ) -> Result<(), anyhow::Error> {
         for child in &node.borrow().children {
             self.calculate_size_recursive(child)?;
         }
@@ -169,51 +196,9 @@ impl<'a> RenderTree<'a> {
         let mut node_ref = node.borrow_mut();
 
         match &node_ref.node_type {
-            RenderNodeType::Object => {
-                let object_name = &node_ref.text_content;
-                if !object_name.is_empty() {
-                    if let Some(object) = self.package.get_object(object_name) {
-                        match object.space_size() {
-                            Ok(space_size) => {
-                                node_ref.attr.set_content_size(space_size);
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "Warning: Failed to calculate space size for object '{}': {}",
-                                    object_name, e
-                                );
-                            }
-                        }
-                    } else {
-                        eprintln!(
-                            "Warning: Object '{}' not found in package configuration",
-                            object_name
-                        );
-                    }
-                }
-            }
-            RenderNodeType::Group => {
-                let group_name = &node_ref.text_content;
-                if !group_name.is_empty() {
-                    if let Some(group) = self.package.get_group(group_name) {
-                        match group.space_size(self.package) {
-                            Ok(size) => {
-                                node_ref.attr.set_content_size(size);
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "Warning: Failed to calculate space size for group '{}': {}",
-                                    group_name, e
-                                );
-                            }
-                        }
-                    } else {
-                        eprintln!(
-                            "Warning: Group '{}' not found in package configuration",
-                            group_name
-                        );
-                    }
-                }
+            RenderNodeType::Item => {
+                let name = &node_ref.text_content;
+                node_ref.attr.absolute_size = self.package.get_space_size(name)?;
             }
             RenderNodeType::Space => {
                 let mut total_size = Dim3::default();
@@ -222,7 +207,7 @@ impl<'a> RenderTree<'a> {
 
                 for child in &children {
                     let child_ref = child.borrow();
-                    let child_size = child_ref.attr.content_size();
+                    let child_size = child_ref.attr.absolute_size;
                     total_size = total_size + child_size;
                 }
 
@@ -246,7 +231,7 @@ impl<'a> RenderTree<'a> {
                     || total_size.y > Length::from_mm(0)
                     || total_size.z > Length::from_mm(0)
                 {
-                    node_ref.attr.set_content_size(total_size);
+                    node_ref.attr.absolute_pos = total_size;
                 }
             }
             _ => {}
@@ -256,14 +241,15 @@ impl<'a> RenderTree<'a> {
     }
 
     fn calculate_pos_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> Result<(), anyhow::Error> {
-        if let Some(parent_rc) = node.borrow().parent() {
+        let mut node_ref = node.borrow_mut();
+
+        if let Some(parent_rc) = node_ref.parent() {
             let parent = parent_rc.borrow();
-            let mut node_ref = node.borrow_mut();
 
             match parent.specified_style.display {
                 style::Display::Block => {
                     node_ref.attr.absolute_pos = parent.attr.absolute_pos;
-                    let max = parent.attr.content_size() - node_ref.attr.content_size;
+                    let max = parent.attr.absolute_size - node_ref.attr.absolute_size;
                     if let Auto::Value(x) = node_ref.specified_style.position_x() {
                         node_ref.attr.absolute_pos.x = x.absolute_pos(Length::from_mm(0), max.x);
                     }
@@ -274,34 +260,38 @@ impl<'a> RenderTree<'a> {
                         node_ref.attr.absolute_pos.z = z.absolute_pos(Length::from_mm(0), max.z);
                     }
                 }
-                style::Display::Stack => {
-                    // This is handled by the parent in a stack layout
+                style::Display::Flex => {
+                    // This is handled by the parent in a flex layout
                 }
             }
         }
 
         {
-            let mut node_ref = node.borrow_mut();
-            if let style::Display::Stack = node_ref.specified_style.display {
-                let mut base = node_ref.attr.content_size.z;
-                node_ref.attr.flex_child_space.clear();
+            if let style::Display::Flex = node_ref.specified_style.display {
+                let mut base = node_ref.attr.absolute_size.z;
+                let mut flex_child_space = vec![];
+
                 for child in &node_ref.children {
                     let mut child_ref = child.borrow_mut();
-                    let child_size = child_ref.attr.content_size;
+                    let child_size = child_ref.attr.absolute_size;
                     base = base - child_size.z;
                     let child_pos = Dim3::new(
-                        node_ref.attr.absolute_pos.x,
-                        node_ref.attr.absolute_pos.y,
+                        Length::from_cm(0),
+                        Length::from_cm(0),
                         node_ref.attr.absolute_pos.z + base,
                     );
+
                     child_ref.attr.absolute_pos = child_pos;
-                    node_ref.attr.flex_child_space.push(AbsoluteSpace { pos: child_pos });
+                    flex_child_space.push(AbsoluteSpace { pos: child_pos });
                 }
+                node_ref.attr.flex_child_space = flex_child_space;
             }
         }
 
-        for child in &node.borrow().children {
-            self.calculate_pos_recursive(child)?;
+        let children = node_ref.children.clone();
+        drop(node_ref);
+        for child in children {
+            self.calculate_pos_recursive(&child)?;
         }
 
         Ok(())
@@ -315,10 +305,8 @@ impl<'a> RenderTree<'a> {
 /// 根据标签名确定节点类型
 fn determine_node_type(tag_name: &str) -> RenderNodeType {
     match tag_name.to_lowercase().as_str() {
-        "space" => RenderNodeType::Space,
-        "object" => RenderNodeType::Object,
-        "group" => RenderNodeType::Group,
-        _ => RenderNodeType::Unknown,
+        "object" | "group" => RenderNodeType::Item,
+        _ => RenderNodeType::Space,
     }
 }
 
@@ -335,9 +323,7 @@ pub fn print_render_tree_computed(node: &Rc<RefCell<RenderNode>>, depth: usize) 
 
     match &node_ref.node_type {
         RenderNodeType::Space => print!(" [Space]"),
-        RenderNodeType::Object => print!(" [Object]"),
-        RenderNodeType::Group => print!(" [Group]"),
-        RenderNodeType::Unknown => print!(" [Unknown]"),
+        RenderNodeType::Item => print!(" [Object]"),
     }
 
     if !node_ref.text_content.is_empty() {
@@ -373,7 +359,7 @@ fn print_computed_style_info(node_ref: &RenderNode, depth: usize) {
         node_ref.attr.absolute_pos.z
     );
 
-    println!("{}Content Size: {:?}", indent, node_ref.attr.content_size());
+    println!("{}Content Size: {:?}", indent, node_ref.attr.absolute_size);
 }
 
 #[cfg(test)]
@@ -393,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_render_node_with_id() {
-        let mut node = RenderNode::new("object".to_string(), RenderNodeType::Object);
+        let mut node = RenderNode::new("object".to_string(), RenderNodeType::Item);
         node.set_id("test-id".to_string());
         assert_eq!(node.id, Some("test-id".to_string()));
     }
@@ -401,9 +387,8 @@ mod tests {
     #[test]
     fn test_determine_node_type() {
         assert_eq!(determine_node_type("space"), RenderNodeType::Space);
-        assert_eq!(determine_node_type("object"), RenderNodeType::Object);
-        assert_eq!(determine_node_type("group"), RenderNodeType::Group);
-        assert_eq!(determine_node_type("unknown"), RenderNodeType::Unknown);
+        assert_eq!(determine_node_type("object"), RenderNodeType::Item);
+        assert_eq!(determine_node_type("group"), RenderNodeType::Item);
     }
 
     #[test]
@@ -435,7 +420,7 @@ mod tests {
             Length::from_cm(10),
             Length::from_cm(10),
         );
-        attr.set_content_size(content_size);
-        assert_eq!(attr.content_size(), content_size);
+        attr.absolute_size = content_size;
+        assert_eq!(attr.absolute_size, content_size);
     }
 }
