@@ -1,22 +1,51 @@
 use crate::dim3::Dim3;
-use anyhow::{anyhow, Result};
-use serde::Deserialize;
+use anyhow::{Result, anyhow};
+use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
 
-use crate::auto::Length;
+use crate::base::Length;
+
+/// Custom deserializer for Dim3<Length> from string format "x y z"
+fn deserialize_dim3_length<'de, D>(deserializer: D) -> Result<Dim3<Length>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    
+    if parts.len() != 3 {
+        return Err(serde::de::Error::custom(format!(
+            "Expected 3 dimensions, got {}: {}",
+            parts.len(),
+            s
+        )));
+    }
+
+    let x = parts[0]
+        .parse::<Length>()
+        .map_err(serde::de::Error::custom)?;
+    let y = parts[1]
+        .parse::<Length>()
+        .map_err(serde::de::Error::custom)?;
+    let z = parts[2]
+        .parse::<Length>()
+        .map_err(serde::de::Error::custom)?;
+
+    Ok(Dim3::new(x, y, z))
+}
 
 /// 依赖项配置
 #[derive(Debug, Deserialize, Clone)]
 pub struct Dependency {
-    #[serde(rename = "size-limit")]
-    pub size_limit: String,
+    #[serde(rename = "size-limit", deserialize_with = "deserialize_dim3_length")]
+    pub size_limit: Dim3<Length>,
 }
 
 impl Dependency {
     /// 获取依赖项的尺寸限制
-    pub fn size_limit(&self) -> &str {
+    pub fn size_limit(&self) -> &Dim3<Length> {
         &self.size_limit
     }
 }
@@ -82,7 +111,17 @@ impl Group {
         // 遍历组内的所有项目
         for item_name in &self.items {
             // 尝试查找对象或组
-            let size = package.get_space_size(item_name)?;
+            let size = if let Some(object) = package.get_object(item_name) {
+                // If it's an object, get its space size
+                object.space_size()?
+            } else if let Some(dependency) = package.get_dependency(item_name) {
+                // If it's a dependency, get its space size directly
+                *dependency.size_limit()
+            } else {
+                // If it's neither an object nor a dependency, return an error
+                return Err(anyhow!("Item '{}' not found in package", item_name));
+            };
+            
             max_x = if size.x > max_x { size.x } else { max_x };
             max_y = if size.y > max_y { size.y } else { max_y };
             max_z = if size.z > max_z { size.z } else { max_z };
@@ -145,13 +184,17 @@ impl Package {
 
     /// 获取对象或组的空间尺寸
     pub fn get_space_size(&self, name: &str) -> Result<Dim3<Length>> {
+        println!("get_space_size1 name={}", name);
         if let Some(object) = self.get_object(name) {
             return object.space_size();
         }
         if let Some(group) = self.get_group(name) {
             return group.space_size(self);
         }
-        Err(anyhow!("Object or group with name '{}' not found in package", name))
+        Err(anyhow!(
+            "Object or group with name '{}' not found in package",
+            name
+        ))
     }
 
     /// 检查是否存在指定的依赖项
@@ -181,7 +224,10 @@ mod tests {
         // 测试依赖项解析
         let bottle = package.get_dependency("bottle");
         assert!(bottle.is_some());
-        assert_eq!(bottle.unwrap().size_limit(), "10cm 10cm 10cm");
+        let bottle_size = bottle.unwrap().size_limit();
+        assert_eq!(bottle_size.x, Length::from_cm(10));
+        assert_eq!(bottle_size.y, Length::from_cm(10));
+        assert_eq!(bottle_size.z, Length::from_cm(10));
 
         // 测试对象解析
         let table_plane = package.get_object("table_plane");
@@ -240,7 +286,10 @@ mod tests {
     fn test_dependency_methods() {
         let package = Package::from_file("package.toml").expect("Failed to parse package.toml");
         let bottle = package.get_dependency("bottle").unwrap();
-        assert_eq!(bottle.size_limit(), "10cm 10cm 10cm");
+        let size = bottle.size_limit();
+        assert_eq!(size.x, Length::from_cm(10));
+        assert_eq!(size.y, Length::from_cm(10));
+        assert_eq!(size.z, Length::from_cm(10));
     }
 
     #[test]
@@ -269,9 +318,11 @@ mod tests {
         assert_eq!(table_plane_size.y, Length::from_m(1));
         assert_eq!(table_plane_size.z, Length::from_cm(10));
 
-        // Test getting size of a group that contains a dependency (should fail)
-        let bottles_group_result = package.get_space_size("bottles");
-        assert!(bottles_group_result.is_err());
+        // Test getting size of a group that contains a dependency
+        let bottles_group_size = package.get_space_size("bottles").unwrap();
+        assert_eq!(bottles_group_size.x, Length::from_cm(10));
+        assert_eq!(bottles_group_size.y, Length::from_cm(10));
+        assert_eq!(bottles_group_size.z, Length::from_cm(10));
 
         // Test not found
         let result = package.get_space_size("nonexistent");

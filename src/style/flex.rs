@@ -1,0 +1,177 @@
+use crate::base::{Length, Percentage};
+use anyhow::{Result, anyhow};
+use std::str::FromStr;
+
+/// FlexBasis 枚举，支持 <length> | <percentage> | auto
+#[derive(Debug, Clone, PartialEq)]
+pub enum FlexBasis {
+    Length(Length),
+    Percentage(Percentage),
+    Auto,
+}
+
+impl Default for FlexBasis {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl FromStr for FlexBasis {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let s = s.trim().to_lowercase();
+        
+        if s == "auto" {
+            return Ok(FlexBasis::Auto);
+        }
+        
+        // Try to parse as percentage first (ends with %)
+        if s.ends_with('%') {
+            match Percentage::from_str(&s) {
+                Ok(percentage) => Ok(FlexBasis::Percentage(percentage)),
+                Err(e) => Err(anyhow!("Invalid percentage value: {}", e)),
+            }
+        } else {
+            // Try to parse as length
+            match Length::from_str(&s) {
+                Ok(length) => Ok(FlexBasis::Length(length)),
+                Err(e) => Err(anyhow!("Invalid flex-basis value '{}': {}", s, e)),
+            }
+        }
+    }
+}
+
+/// justify-content属性枚举
+#[derive(Debug, Clone, PartialEq)]
+pub enum JustifyContent {
+    FlexStart,
+    FlexEnd,
+    Center,
+    SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
+}
+
+impl Default for JustifyContent {
+    fn default() -> Self {
+        Self::FlexStart
+    }
+}
+
+impl FromStr for JustifyContent {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "flex-start" => Ok(JustifyContent::FlexStart),
+            "flex-end" => Ok(JustifyContent::FlexEnd),
+            "center" => Ok(JustifyContent::Center),
+            "space-between" => Ok(JustifyContent::SpaceBetween),
+            "space-around" => Ok(JustifyContent::SpaceAround),
+            "space-evenly" => Ok(JustifyContent::SpaceEvenly),
+            _ => Err(anyhow!("Invalid justify-content value: {}", s)),
+        }
+    }
+}
+
+/// flex-direction属性枚举
+#[derive(Debug, Clone, PartialEq)]
+pub enum FlexDirection {
+    X,
+    Y,
+    Z,
+    ReverseX,
+    ReverseY,
+    ReverseZ,
+}
+
+impl Default for FlexDirection {
+    fn default() -> Self {
+        Self::ReverseZ
+    }
+}
+
+impl FromStr for FlexDirection {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "x" => Ok(FlexDirection::X),
+            "y" => Ok(FlexDirection::Y),
+            "z" => Ok(FlexDirection::Z),
+            "x-reverse" => Ok(FlexDirection::ReverseX),
+            "y-reverse" => Ok(FlexDirection::ReverseY),
+            "z-reverse" => Ok(FlexDirection::ReverseZ),
+            _ => Err(anyhow!("Invalid flex-direction value: {}", s)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_flex_basis_from_str() {
+        assert_eq!(FlexBasis::from_str("auto").unwrap(), FlexBasis::Auto);
+        assert_eq!(
+            FlexBasis::from_str("50%").unwrap(),
+            FlexBasis::Percentage(Percentage::new(50))
+        );
+        assert_eq!(
+            FlexBasis::from_str("100mm").unwrap(),
+            FlexBasis::Length(Length::from_mm(100))
+        );
+        assert!(FlexBasis::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_justify_content_from_str() {
+        assert_eq!(
+            JustifyContent::from_str("flex-start").unwrap(),
+            JustifyContent::FlexStart
+        );
+        assert_eq!(
+            JustifyContent::from_str("flex-end").unwrap(),
+            JustifyContent::FlexEnd
+        );
+        assert_eq!(
+            JustifyContent::from_str("center").unwrap(),
+            JustifyContent::Center
+        );
+        assert_eq!(
+            JustifyContent::from_str("space-between").unwrap(),
+            JustifyContent::SpaceBetween
+        );
+        assert_eq!(
+            JustifyContent::from_str("space-around").unwrap(),
+            JustifyContent::SpaceAround
+        );
+        assert_eq!(
+            JustifyContent::from_str("space-evenly").unwrap(),
+            JustifyContent::SpaceEvenly
+        );
+        assert!(JustifyContent::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_flex_direction_from_str() {
+        assert_eq!(FlexDirection::from_str("x").unwrap(), FlexDirection::X);
+        assert_eq!(FlexDirection::from_str("y").unwrap(), FlexDirection::Y);
+        assert_eq!(FlexDirection::from_str("z").unwrap(), FlexDirection::Z);
+        assert_eq!(
+            FlexDirection::from_str("x-reverse").unwrap(),
+            FlexDirection::ReverseX
+        );
+        assert_eq!(
+            FlexDirection::from_str("y-reverse").unwrap(),
+            FlexDirection::ReverseY
+        );
+        assert_eq!(
+            FlexDirection::from_str("z-reverse").unwrap(),
+            FlexDirection::ReverseZ
+        );
+        assert!(FlexDirection::from_str("invalid").is_err());
+    }
+}

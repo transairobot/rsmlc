@@ -82,6 +82,10 @@ impl<T> Default for Auto<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Length(u32);
 
+/// A percentage structure stored as u32 (0-100%)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct Percentage(u32);
+
 impl Length {
     /// Create a new Length from millimeters
     pub const fn from_mm(mm: u32) -> Self {
@@ -242,6 +246,74 @@ impl std::ops::AddAssign for Length {
 impl std::iter::Sum for Length {
     fn sum<I: Iterator<Item = Length>>(iter: I) -> Length {
         iter.fold(Length(0), |acc, x| acc + x)
+    }
+}
+
+impl Percentage {
+    /// Create a new Percentage from a u32 value
+    pub const fn new(value: u32) -> Self {
+        Percentage(value)
+    }
+
+    /// Get the percentage value
+    pub const fn value(&self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for Percentage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}%", self.0)
+    }
+}
+
+impl Default for Percentage {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+impl FromStr for Percentage {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Trim whitespace
+        let s = s.trim();
+
+        // Check if string is empty
+        if s.is_empty() {
+            return Err("Empty string".to_string());
+        }
+
+        // Check if string ends with %
+        if !s.ends_with('%') {
+            return Err("Percentage must end with %".to_string());
+        }
+
+        // Remove the % character
+        let number_str = &s[..s.len() - 1];
+
+        // Parse the number part
+        let number: u32 = number_str
+            .parse()
+            .map_err(|_| format!("Invalid number: {}", number_str))?;
+
+        // Check for values over 100%
+        if number > 100 {
+            return Err("Percentage cannot be greater than 100%".to_string());
+        }
+
+        Ok(Percentage(number))
+    }
+}
+
+impl<'de> Deserialize<'de> for Percentage {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Percentage::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 

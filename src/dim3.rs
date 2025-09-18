@@ -1,4 +1,5 @@
 use std::ops::{Add, Sub, Mul, Div};
+use std::fmt;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Dim3<T> {
@@ -80,5 +81,11 @@ impl<T: Div<Output = T>> Div for Dim3<T> {
             y: self.y / other.y,
             z: self.z / other.z,
         }
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Dim3<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.x, self.y, self.z)
     }
 }

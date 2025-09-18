@@ -1,14 +1,18 @@
-use crate::auto::{Auto, Length};
+use crate::base::{Auto, Length};
 use crate::dim3::Dim3;
 use anyhow::{Result, anyhow};
 use rand::Rng;
 use std::str::FromStr;
+
+mod flex;
+pub use flex::{FlexBasis, JustifyContent, FlexDirection};
 
 /// Display属性枚举
 #[derive(Debug, Clone, PartialEq)]
 pub enum Display {
     Block,
     Flex,
+    Cube,
 }
 
 impl FromStr for Display {
@@ -17,68 +21,8 @@ impl FromStr for Display {
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "block" => Ok(Display::Block),
-            "flex" | "flex" => Ok(Display::Flex),
+            "flex" => Ok(Display::Flex),
             _ => Err(anyhow!("Invalid display value: {}", s)),
-        }
-    }
-}
-
-/// justify-content属性枚举
-#[derive(Debug, Clone, PartialEq)]
-pub enum JustifyContent {
-    FlexStart,
-    FlexEnd,
-    Center,
-    SpaceBetween,
-    SpaceAround,
-    SpaceEvenly,
-}
-
-impl FromStr for JustifyContent {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s.trim().to_lowercase().as_str() {
-            "flex-start" => Ok(JustifyContent::FlexStart),
-            "flex-end" => Ok(JustifyContent::FlexEnd),
-            "center" => Ok(JustifyContent::Center),
-            "space-between" => Ok(JustifyContent::SpaceBetween),
-            "space-around" => Ok(JustifyContent::SpaceAround),
-            "space-evenly" => Ok(JustifyContent::SpaceEvenly),
-            _ => Err(anyhow!("Invalid justify-content value: {}", s)),
-        }
-    }
-}
-
-/// flex-direction属性枚举
-#[derive(Debug, Clone, PartialEq)]
-pub enum FlexDirection {
-    X,
-    Y,
-    Z,
-    ReverseX,
-    ReverseY,
-    ReverseZ,
-}
-
-impl Default for FlexDirection {
-    fn default() -> Self {
-        Self::ReverseZ
-    }
-}
-
-impl FromStr for FlexDirection {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s.trim().to_lowercase().as_str() {
-            "x" => Ok(FlexDirection::X),
-            "y" => Ok(FlexDirection::Y),
-            "z" => Ok(FlexDirection::Z),
-            "x-reverse" => Ok(FlexDirection::ReverseX),
-            "y-reverse" => Ok(FlexDirection::ReverseY),
-            "z-reverse" => Ok(FlexDirection::ReverseZ),
-            _ => Err(anyhow!("Invalid flex-direction value: {}", s)),
         }
     }
 }
@@ -137,19 +81,21 @@ pub type Position = (Auto<AxisPos>, Auto<AxisPos>, Auto<AxisPos>);
 pub struct Style {
     pub size: Dim3<Auto<Length>>, // size: 三个维度的尺寸 (x, y, z)
     pub display: Display,         // display: block 或 flex
-    pub justify_content: Option<JustifyContent>, // justify-content: 对齐方式
+    pub justify_content: JustifyContent, // justify-content: 对齐方式
     pub flex_direction: FlexDirection, // flex-direction: x, y, z
     pub position: Position,       // pos: 三个轴的定位
+    pub flex_basis: FlexBasis,
 }
 
 impl Default for Style {
     fn default() -> Self {
         Style {
             size: Dim3::new(Auto::Auto, Auto::Auto, Auto::Auto), // 默认尺寸为auto
-            display: Display::Block,                             // 默认显示为block
-            justify_content: None,                               // 默认无justify-content
-            flex_direction: FlexDirection::default(),            // 默认无flex-direction
+            display: Display::Cube,                              // 默认显示为cube
+            justify_content: JustifyContent::default(),          // 默认
+            flex_direction: FlexDirection::default(),            // 默认flex-direction
             position: (Auto::Auto, Auto::Auto, Auto::Auto),      // 默认位置为auto
+            flex_basis: FlexBasis::default(),
         }
     }
 }
@@ -229,7 +175,7 @@ impl Style {
                     style.display = Display::from_str(value)?;
                 }
                 "justify-content" => {
-                    style.justify_content = Some(JustifyContent::from_str(value)?);
+                    style.justify_content = JustifyContent::from_str(value)?;
                 }
                 "flex-direction" => {
                     style.flex_direction = FlexDirection::from_str(value)?;
@@ -246,6 +192,9 @@ impl Style {
                     let z = parse_auto_axis_pos(pos_parts[2])?;
 
                     style.position = (x, y, z);
+                }
+                "flex-basis" => {
+                    style.flex_basis = FlexBasis::from_str(value)?;
                 }
                 _ => {
                     // 忽略未知属性而不是报错，以提高兼容性
@@ -301,6 +250,7 @@ fn parse_auto_axis_pos(s: &str) -> Result<Auto<AxisPos>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::base::Percentage;
 
     #[test]
     fn test_display_parsing() {
@@ -361,7 +311,7 @@ mod tests {
     #[test]
     fn test_style_parsing() {
         // 测试完整的样式字符串解析
-        let style_str = "size:10m 5m auto;display:flex;justify-content:flex-end;flex-direction:x;pos:min max 10cm";
+        let style_str = "size:10m 5m auto;display:flex;justify-content:flex-end;flex-direction:x;pos:min max 10cm;flex-basis:50%";
         let style = Style::from_style_string(style_str).unwrap();
 
         // 验证size
@@ -373,7 +323,7 @@ mod tests {
         assert_eq!(style.display, Display::Flex);
 
         // 验证justify-content
-        assert_eq!(style.justify_content, Some(JustifyContent::FlexEnd));
+        assert_eq!(style.justify_content, JustifyContent::FlexEnd);
 
         // 验证flex-direction
         assert_eq!(style.flex_direction, FlexDirection::X);
@@ -384,6 +334,12 @@ mod tests {
         assert_eq!(
             style.position_z(),
             &Auto::Value(AxisPos::Length(Length::from_cm(10)))
+        );
+
+        // 验证flex-basis
+        assert_eq!(
+            style.flex_basis,
+            FlexBasis::Percentage(Percentage::new(50))
         );
     }
 
@@ -398,12 +354,13 @@ mod tests {
         assert_eq!(style.size_x(), &Auto::Auto);
         assert_eq!(style.size_y(), &Auto::Auto);
         assert_eq!(style.size_z(), &Auto::Auto);
-        assert_eq!(style.justify_content, None);
+        assert_eq!(style.justify_content, JustifyContent::FlexStart);
         assert_eq!(style.flex_direction, FlexDirection::default());
         // 验证position默认值为auto
         assert_eq!(style.position_x(), &Auto::Auto);
         assert_eq!(style.position_y(), &Auto::Auto);
         assert_eq!(style.position_z(), &Auto::Auto);
+        assert_eq!(style.flex_basis, FlexBasis::Auto);
     }
 
     #[test]

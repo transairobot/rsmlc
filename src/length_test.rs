@@ -1,4 +1,4 @@
-use crate::auto::{Length};
+use crate::base::{Length};
 use std::iter::Sum;
 
 #[test]

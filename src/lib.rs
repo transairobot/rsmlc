@@ -1,4 +1,4 @@
-pub mod auto;
+pub mod base;
 pub mod style;
 pub mod xml_parser;
 pub mod render_tree;
