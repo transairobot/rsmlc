@@ -1,5 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt;
+use std::{any, fmt};
 use std::str::FromStr;
 
 /// An Auto type that can either be a specific value or automatically determined.
@@ -137,7 +137,7 @@ impl Default for Length {
 }
 
 impl FromStr for Length {
-    type Err = String;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Trim whitespace
@@ -145,7 +145,7 @@ impl FromStr for Length {
 
         // Check if string is empty
         if s.is_empty() {
-            return Err("Empty string".to_string());
+            return Err(anyhow::anyhow!("Empty string".to_string()));
         }
 
         // Find the position where the number ends and the unit begins
@@ -161,7 +161,7 @@ impl FromStr for Length {
         let number_str = &s[..split_pos];
         let number: f64 = number_str
             .parse()
-            .map_err(|_| format!("Invalid number: {}", number_str))?;
+            .map_err(|_| anyhow::anyhow!("Invalid number: {}", number_str))?;
 
         // Parse the unit part (trim leading whitespace)
         let unit_str = &s[split_pos..].trim_start().to_lowercase();
@@ -170,7 +170,7 @@ impl FromStr for Length {
             "cm" => 10.0,
             "m" => 1000.0,
             "" => 1.0, // Default to mm if no unit specified
-            _ => return Err(format!("Unknown unit: {}", unit_str)),
+            _ => return Err(anyhow::anyhow!("Unknown unit: {}", unit_str)),
         };
 
         // Calculate the value in mm
@@ -178,12 +178,12 @@ impl FromStr for Length {
 
         // Check for negative values
         if mm_value < 0.0 {
-            return Err("Length cannot be negative".to_string());
+            return Err(anyhow::anyhow!("Length cannot be negative".to_string()));
         }
 
         // Convert to u32, checking for overflow
         if mm_value > u32::MAX as f64 {
-            return Err("Length value too large".to_string());
+            return Err(anyhow::anyhow!("Length value too large".to_string()));
         }
 
         Ok(Length(mm_value as u32))
@@ -259,6 +259,10 @@ impl Percentage {
     pub const fn value(&self) -> u32 {
         self.0
     }
+
+    pub fn float(&self) -> f32 {
+        self.0 as f32 / 100.0
+    }
 }
 
 impl fmt::Display for Percentage {
@@ -274,7 +278,7 @@ impl Default for Percentage {
 }
 
 impl FromStr for Percentage {
-    type Err = String;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Trim whitespace
@@ -282,12 +286,12 @@ impl FromStr for Percentage {
 
         // Check if string is empty
         if s.is_empty() {
-            return Err("Empty string".to_string());
+            return Err(anyhow::anyhow!("Empty string".to_string()));
         }
 
         // Check if string ends with %
         if !s.ends_with('%') {
-            return Err("Percentage must end with %".to_string());
+            return Err(anyhow::anyhow!("Percentage must end with %".to_string()));
         }
 
         // Remove the % character
@@ -296,11 +300,13 @@ impl FromStr for Percentage {
         // Parse the number part
         let number: u32 = number_str
             .parse()
-            .map_err(|_| format!("Invalid number: {}", number_str))?;
+            .map_err(|_| anyhow::anyhow!("Invalid number: {}", number_str))?;
 
         // Check for values over 100%
         if number > 100 {
-            return Err("Percentage cannot be greater than 100%".to_string());
+            return Err(anyhow::anyhow!(
+                "Percentage cannot be greater than 100%".to_string()
+            ));
         }
 
         Ok(Percentage(number))

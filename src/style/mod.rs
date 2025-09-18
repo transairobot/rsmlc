@@ -1,11 +1,40 @@
-use crate::base::{Auto, Length};
+use crate::base::{Auto, Length, Percentage};
 use crate::dim3::Dim3;
 use anyhow::{Result, anyhow};
 use rand::Rng;
 use std::str::FromStr;
 
 mod flex;
-pub use flex::{FlexBasis, JustifyContent, FlexDirection};
+pub use flex::{FlexBasis, FlexDirection, JustifyContent};
+
+/// Enum for size values, supporting Length, Percentage, and Auto.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SizeValue {
+    Length(Length),
+    Percentage(Percentage),
+    Auto,
+}
+
+impl Default for SizeValue {
+    fn default() -> Self {
+        SizeValue::Auto
+    }
+}
+
+impl FromStr for SizeValue {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let s = s.trim().to_lowercase();
+        if s == "auto" {
+            return Ok(SizeValue::Auto);
+        }
+        if s.ends_with('%') {
+            return Ok(SizeValue::Percentage(Percentage::from_str(&s)?));
+        }
+        Ok(SizeValue::Length(Length::from_str(&s)?))
+    }
+}
 
 /// Display属性枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -79,22 +108,22 @@ pub type Position = (Auto<AxisPos>, Auto<AxisPos>, Auto<AxisPos>);
 /// Style结构体，包含所有支持的样式属性
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
-    pub size: Dim3<Auto<Length>>, // size: 三个维度的尺寸 (x, y, z)
-    pub display: Display,         // display: block 或 flex
+    pub size: Dim3<SizeValue>,           // size: 三个维度的尺寸 (x, y, z)
+    pub display: Display,                // display: block 或 flex
     pub justify_content: JustifyContent, // justify-content: 对齐方式
-    pub flex_direction: FlexDirection, // flex-direction: x, y, z
-    pub position: Position,       // pos: 三个轴的定位
+    pub flex_direction: FlexDirection,   // flex-direction: x, y, z
+    pub position: Position,              // pos: 三个轴的定位
     pub flex_basis: FlexBasis,
 }
 
 impl Default for Style {
     fn default() -> Self {
         Style {
-            size: Dim3::new(Auto::Auto, Auto::Auto, Auto::Auto), // 默认尺寸为auto
-            display: Display::Cube,                              // 默认显示为cube
-            justify_content: JustifyContent::default(),          // 默认
-            flex_direction: FlexDirection::default(),            // 默认flex-direction
-            position: (Auto::Auto, Auto::Auto, Auto::Auto),      // 默认位置为auto
+            size: Dim3::default(),
+            display: Display::Cube,                         // 默认显示为cube
+            justify_content: JustifyContent::default(),     // 默认
+            flex_direction: FlexDirection::default(),       // 默认flex-direction
+            position: (Auto::Auto, Auto::Auto, Auto::Auto), // 默认位置为auto
             flex_basis: FlexBasis::default(),
         }
     }
@@ -107,17 +136,17 @@ impl Style {
     }
 
     /// 获取x维度的尺寸
-    pub fn size_x(&self) -> &Auto<Length> {
+    pub fn size_x(&self) -> &SizeValue {
         &self.size.x
     }
 
     /// 获取y维度的尺寸
-    pub fn size_y(&self) -> &Auto<Length> {
+    pub fn size_y(&self) -> &SizeValue {
         &self.size.y
     }
 
     /// 获取z维度的尺寸
-    pub fn size_z(&self) -> &Auto<Length> {
+    pub fn size_z(&self) -> &SizeValue {
         &self.size.z
     }
 
@@ -159,15 +188,15 @@ impl Style {
 
             match property {
                 "size" => {
-                    // 解析尺寸，格式如 "10m 10m 10m" 或 "auto auto auto"
+                    // 解析尺寸，格式如 "10m 50% auto"
                     let size_parts: Vec<&str> = value.split_whitespace().collect();
                     if size_parts.len() != 3 {
                         return Err(anyhow!("Size must have exactly 3 values (x, y, z)"));
                     }
 
-                    let x = parse_auto_length(size_parts[0])?;
-                    let y = parse_auto_length(size_parts[1])?;
-                    let z = parse_auto_length(size_parts[2])?;
+                    let x = SizeValue::from_str(size_parts[0])?;
+                    let y = SizeValue::from_str(size_parts[1])?;
+                    let z = SizeValue::from_str(size_parts[2])?;
 
                     style.size = Dim3::new(x, y, z);
                 }
@@ -219,18 +248,6 @@ impl Default for ComputedStyle {
         Self {
             size: Dim3::default(),
             pos: Dim3::default(),
-        }
-    }
-}
-
-/// 解析Auto<Length>值
-fn parse_auto_length(s: &str) -> Result<Auto<Length>> {
-    if s.to_lowercase() == "auto" {
-        Ok(Auto::Auto)
-    } else {
-        match Length::from_str(s) {
-            Ok(length) => Ok(Auto::Value(length)),
-            Err(e) => Err(anyhow!("Invalid length value '{}': {}", s, e)),
         }
     }
 }
@@ -311,13 +328,13 @@ mod tests {
     #[test]
     fn test_style_parsing() {
         // 测试完整的样式字符串解析
-        let style_str = "size:10m 5m auto;display:flex;justify-content:flex-end;flex-direction:x;pos:min max 10cm;flex-basis:50%";
+        let style_str = "size:10m 50% auto;display:flex;justify-content:flex-end;flex-direction:x;pos:min max 10cm;flex-basis:50%";
         let style = Style::from_style_string(style_str).unwrap();
 
         // 验证size
-        assert_eq!(style.size_x(), &Auto::Value(Length::from_m(10)));
-        assert_eq!(style.size_y(), &Auto::Value(Length::from_m(5)));
-        assert_eq!(style.size_z(), &Auto::Auto);
+        assert_eq!(style.size_x(), &SizeValue::Length(Length::from_m(10)));
+        assert_eq!(style.size_y(), &SizeValue::Percentage(Percentage::new(50)));
+        assert_eq!(style.size_z(), &SizeValue::Auto);
 
         // 验证display
         assert_eq!(style.display, Display::Flex);
@@ -337,10 +354,7 @@ mod tests {
         );
 
         // 验证flex-basis
-        assert_eq!(
-            style.flex_basis,
-            FlexBasis::Percentage(Percentage::new(50))
-        );
+        assert_eq!(style.flex_basis, FlexBasis::Percentage(Percentage::new(50)));
     }
 
     #[test]
@@ -351,9 +365,9 @@ mod tests {
 
         // 验证默认值
         assert_eq!(style.display, Display::Block);
-        assert_eq!(style.size_x(), &Auto::Auto);
-        assert_eq!(style.size_y(), &Auto::Auto);
-        assert_eq!(style.size_z(), &Auto::Auto);
+        assert_eq!(style.size_x(), &SizeValue::Auto);
+        assert_eq!(style.size_y(), &SizeValue::Auto);
+        assert_eq!(style.size_z(), &SizeValue::Auto);
         assert_eq!(style.justify_content, JustifyContent::FlexStart);
         assert_eq!(style.flex_direction, FlexDirection::default());
         // 验证position默认值为auto

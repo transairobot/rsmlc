@@ -1,10 +1,11 @@
 use crate::base::{Auto, Length};
 use crate::dim3::Dim3;
 use crate::package::Package;
-use crate::style::{self, ComputedStyle, Style, FlexDirection};
+use crate::style::{self, ComputedStyle, FlexDirection, Style};
 use crate::xml_parser::Element;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
+use style::SizeValue;
 
 /// 渲染节点类型枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -43,7 +44,7 @@ pub struct RenderNode {
     pub specified_style: Style,
 
     /// 计算后的样式
-    pub computed_style: ComputedStyle,
+    pub computed_style: Style,
 
     pub attr: NodeAttr,
 
@@ -63,7 +64,7 @@ impl RenderNode {
             tag_name,
             text_content: String::new(),
             specified_style: Style::new(),
-            computed_style: ComputedStyle::default(),
+            computed_style: Style::default(),
             attr: NodeAttr::default(),
             parent: Weak::new(),
             children: Vec::new(),
@@ -186,7 +187,7 @@ impl<'a> RenderTree<'a> {
     }
 
     fn cal_flex_child_size(node_ref: &RenderNode) -> Dim3<Length> {
-        let mut total_size: Dim3<Length> = Dim3::default();
+        let mut child_total_size: Dim3<Length> = Dim3::default();
         let children = &node_ref.children;
         let flex_direction = node_ref.specified_style.flex_direction.clone();
 
@@ -195,39 +196,39 @@ impl<'a> RenderTree<'a> {
             let child_size = child_ref.attr.absolute_size;
             match flex_direction {
                 FlexDirection::X | FlexDirection::ReverseX => {
-                    total_size.x += child_size.x;
-                    total_size.y = total_size.y.max(child_size.y);
-                    total_size.z = total_size.z.max(child_size.z);
+                    child_total_size.x += child_size.x;
+                    child_total_size.y = child_total_size.y.max(child_size.y);
+                    child_total_size.z = child_total_size.z.max(child_size.z);
                 }
                 FlexDirection::Y | FlexDirection::ReverseY => {
-                    total_size.x = total_size.x.max(child_size.x);
-                    total_size.y += child_size.y;
-                    total_size.z = total_size.z.max(child_size.z);
+                    child_total_size.x = child_total_size.x.max(child_size.x);
+                    child_total_size.y += child_size.y;
+                    child_total_size.z = child_total_size.z.max(child_size.z);
                 }
                 FlexDirection::Z | FlexDirection::ReverseZ => {
-                    total_size.x = total_size.x.max(child_size.x);
-                    total_size.y = total_size.y.max(child_size.y);
-                    total_size.z += child_size.z;
+                    child_total_size.x = child_total_size.x.max(child_size.x);
+                    child_total_size.y = child_total_size.y.max(child_size.y);
+                    child_total_size.z += child_size.z;
                 }
             }
         }
 
-        if let Auto::Value(x) = node_ref.specified_style.size.x {
-            if x >= total_size.x {
-                total_size.x = x;
-            }
-        }
-        if let Auto::Value(y) = node_ref.specified_style.size.y {
-            if y >= total_size.y {
-                total_size.y = y;
-            }
-        }
-        if let Auto::Value(z) = node_ref.specified_style.size.z {
-            if z >= total_size.z {
-                total_size.z = z;
-            }
-        }
-        return total_size;
+        // match node_ref.specified_style.size.x {
+        //     style::SizeValue::Length(length) => ,
+        //     style::SizeValue::Percentage(percentage) => todo!(),
+        //     style::SizeValue::Auto => todo!(),
+        // }
+        // if let Auto::Value(y) = node_ref.specified_style.size.y {
+        //     if y >= total_size.y {
+        //         total_size.y = y;
+        //     }
+        // }
+        // if let Auto::Value(z) = node_ref.specified_style.size.z {
+        //     if z >= total_size.z {
+        //         total_size.z = z;
+        //     }
+        // }
+        return child_total_size;
     }
 
     fn calculate_size_by_parent_recursive(
@@ -235,20 +236,49 @@ impl<'a> RenderTree<'a> {
         node: &Rc<RefCell<RenderNode>>,
     ) -> anyhow::Result<()> {
         let mut node_ref = node.borrow_mut();
+        let parent = node_ref
+            .parent()
+            .ok_or(anyhow::anyhow!("Parent node not found"))?;
+        let parent_ref = parent.borrow();
 
+        let parent_size = &parent_ref.computed_style.size;
         let size = node_ref.specified_style.size.clone();
 
-        if let Auto::Value(x) = size.x {
-            node_ref.attr.absolute_size.x = x;
-        }
+        let new_x = match size.x {
+            SizeValue::Length(length) => SizeValue::Length(length),
+            SizeValue::Percentage(percentage) => {
+                if let SizeValue::Length(parent_len) = parent_size.x {
+                    SizeValue::Length(parent_len * percentage.value() / 100)
+                } else {
+                    SizeValue::Auto
+                }
+            }
+            SizeValue::Auto => SizeValue::Auto,
+        };
 
-        if let Auto::Value(y) = size.y {
-            node_ref.attr.absolute_size.y = y;
-        }
+        let new_y = match size.y {
+            SizeValue::Length(length) => SizeValue::Length(length),
+            SizeValue::Percentage(percentage) => {
+                if let SizeValue::Length(parent_len) = parent_size.x {
+                    SizeValue::Length(parent_len * percentage.value() / 100)
+                } else {
+                    SizeValue::Auto
+                }
+            }
+            SizeValue::Auto => SizeValue::Auto,
+        };
 
-        if let Auto::Value(z) = size.z {
-            node_ref.attr.absolute_size.z = z;
-        }
+        let new_z = match size.z {
+            SizeValue::Length(length) => SizeValue::Length(length),
+            SizeValue::Percentage(percentage) => {
+                if let SizeValue::Length(parent_len) = parent_size.z {
+                    SizeValue::Length(parent_len * percentage.value() / 100)
+                } else {
+                    SizeValue::Auto
+                }
+            }
+            SizeValue::Auto => SizeValue::Auto,
+        };
 
         if node_ref.children.len() == 1 {
             node_ref.children[0].borrow_mut().attr.absolute_pos = node_ref.attr.absolute_size;
@@ -394,13 +424,13 @@ pub fn print_render_tree_computed(node: &Rc<RefCell<RenderNode>>, depth: usize) 
 fn print_computed_style_info(node_ref: &RenderNode, depth: usize) {
     let indent = "  ".repeat(depth);
 
-    println!(
-        "{}Computed Size: x={} y={} z={}",
-        indent,
-        node_ref.computed_style.size.x,
-        node_ref.computed_style.size.y,
-        node_ref.computed_style.size.z
-    );
+    // println!(
+    //     "{}Computed Size: x={} y={} z={}",
+    //     indent,
+    //     node_ref.computed_style.size.x,
+    //     node_ref.computed_style.size.y,
+    //     node_ref.computed_style.size.z
+    // );
 
     println!(
         "{}Computed Position: x={} y={} z={}",
