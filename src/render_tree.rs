@@ -1,8 +1,9 @@
 use crate::base::{Auto, Length};
 use crate::dim3::Dim3;
 use crate::package::Package;
-use crate::style::{self, ComputedStyle, FlexDirection, Style};
+use crate::style::{self, FlexDirection, SpaceSize, Style};
 use crate::xml_parser::Element;
+use crate::error::{RsmlError, Result};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use style::SizeValue;
@@ -105,12 +106,12 @@ pub struct RenderTree<'a> {
 }
 
 impl<'a> RenderTree<'a> {
-    pub fn new(dom_element: &Element, package: &'a Package) -> Result<Self, anyhow::Error> {
+    pub fn new(dom_element: &Element, package: &'a Package) -> Result<Self> {
         let root = Self::build_node_recursive(dom_element)?;
         Ok(Self { root, package })
     }
 
-    pub fn calculate(&self) -> Result<(), anyhow::Error> {
+    pub fn calculate(&self) -> Result<()> {
         // Find the body node and start position calculation from there
         if let Some(body_node) = self.find_body_node(&self.root) {
             self.calculate_size_by_child_recursive(&body_node)?;
@@ -140,7 +141,7 @@ impl<'a> RenderTree<'a> {
 
     fn build_node_recursive(
         dom_element: &Element,
-    ) -> Result<Rc<RefCell<RenderNode>>, anyhow::Error> {
+    ) -> Result<Rc<RefCell<RenderNode>>> {
         let node_type = determine_node_type(&dom_element.name);
         let mut render_node = RenderNode::new(dom_element.name.clone(), node_type);
 
@@ -186,7 +187,7 @@ impl<'a> RenderTree<'a> {
         Ok(rc_node)
     }
 
-    fn cal_flex_child_size(node_ref: &RenderNode) -> Dim3<Length> {
+    fn cal_flex_child_size(node_ref: &RenderNode) -> SpaceSize {
         let mut child_total_size: Dim3<Length> = Dim3::default();
         let children = &node_ref.children;
         let flex_direction = node_ref.specified_style.flex_direction.clone();
@@ -213,80 +214,79 @@ impl<'a> RenderTree<'a> {
             }
         }
 
-        // match node_ref.specified_style.size.x {
-        //     style::SizeValue::Length(length) => ,
-        //     style::SizeValue::Percentage(percentage) => todo!(),
-        //     style::SizeValue::Auto => todo!(),
-        // }
-        // if let Auto::Value(y) = node_ref.specified_style.size.y {
-        //     if y >= total_size.y {
-        //         total_size.y = y;
-        //     }
-        // }
-        // if let Auto::Value(z) = node_ref.specified_style.size.z {
-        //     if z >= total_size.z {
-        //         total_size.z = z;
-        //     }
-        // }
-        return child_total_size;
+        return SpaceSize::new(
+            SizeValue::from(child_total_size.x),
+            SizeValue::from(child_total_size.y),
+            SizeValue::from(child_total_size.z),
+        );
+    }
+
+    /// Helper function to calculate a single dimension size based on parent size
+    fn calculate_dimension_size(
+        size_value: &SizeValue,
+        parent_size_value: &SizeValue,
+    ) -> SizeValue {
+        match size_value {
+            SizeValue::Length(length) => SizeValue::Length(*length),
+            SizeValue::Percentage(percentage) => {
+                if let SizeValue::Length(parent_len) = parent_size_value {
+                    SizeValue::Length(*parent_len * percentage.value() / 100)
+                } else {
+                    SizeValue::Auto
+                }
+            }
+            SizeValue::Auto => SizeValue::Auto,
+        }
     }
 
     fn calculate_size_by_parent_recursive(
         &self,
         node: &Rc<RefCell<RenderNode>>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let mut node_ref = node.borrow_mut();
         let parent = node_ref
             .parent()
-            .ok_or(anyhow::anyhow!("Parent node not found"))?;
+            .ok_or(RsmlError::RenderTree { 
+                message: "Parent node not found".to_string() 
+            })?;
         let parent_ref = parent.borrow();
 
         let parent_size = &parent_ref.computed_style.size;
         let size = node_ref.specified_style.size.clone();
 
-        let new_x = match size.x {
-            SizeValue::Length(length) => SizeValue::Length(length),
-            SizeValue::Percentage(percentage) => {
-                if let SizeValue::Length(parent_len) = parent_size.x {
-                    SizeValue::Length(parent_len * percentage.value() / 100)
-                } else {
-                    SizeValue::Auto
-                }
-            }
-            SizeValue::Auto => SizeValue::Auto,
-        };
+        // Calculate sizes for each dimension using the helper function
+        let new_x = Self::calculate_dimension_size(&size.x, &parent_size.x);
+        let new_y = Self::calculate_dimension_size(&size.y, &parent_size.y);
+        let new_z = Self::calculate_dimension_size(&size.z, &parent_size.z);
 
-        let new_y = match size.y {
-            SizeValue::Length(length) => SizeValue::Length(length),
-            SizeValue::Percentage(percentage) => {
-                if let SizeValue::Length(parent_len) = parent_size.x {
-                    SizeValue::Length(parent_len * percentage.value() / 100)
-                } else {
-                    SizeValue::Auto
-                }
-            }
-            SizeValue::Auto => SizeValue::Auto,
-        };
+        node_ref.computed_style.size.x.assign_if_auto(new_x);
+        node_ref.computed_style.size.y.assign_if_auto(new_y);
+        node_ref.computed_style.size.z.assign_if_auto(new_z);
 
-        let new_z = match size.z {
-            SizeValue::Length(length) => SizeValue::Length(length),
-            SizeValue::Percentage(percentage) => {
-                if let SizeValue::Length(parent_len) = parent_size.z {
-                    SizeValue::Length(parent_len * percentage.value() / 100)
-                } else {
-                    SizeValue::Auto
-                }
-            }
-            SizeValue::Auto => SizeValue::Auto,
-        };
-
-        if node_ref.children.len() == 1 {
-            node_ref.children[0].borrow_mut().attr.absolute_pos = node_ref.attr.absolute_size;
-        }
         let children = node_ref.children.clone();
+
+        match node_ref.specified_style.display {
+            style::Display::Block => {}
+            style::Display::Flex => {
+                for child in &children {
+                    let mut child_ref = child.borrow_mut();
+                    let basis_size = child_ref
+                        .specified_style
+                        .flex_basis
+                        .to_space_size(&child_ref.specified_style.flex_direction);
+                    child_ref.computed_style.size.x =
+                        Self::calculate_dimension_size(&basis_size.x, &size.x);
+                    child_ref.computed_style.size.y =
+                        Self::calculate_dimension_size(&basis_size.y, &size.y);
+                    child_ref.computed_style.size.z =
+                        Self::calculate_dimension_size(&basis_size.z, &size.z);
+                }
+            }
+            style::Display::Cube => {}
+        }
         drop(node_ref);
         for child in children {
-            self.calculate_size_by_parent_recursive(&child);
+            self.calculate_size_by_parent_recursive(&child)?;
         }
         Ok(())
     }
@@ -294,7 +294,7 @@ impl<'a> RenderTree<'a> {
     fn calculate_size_by_child_recursive(
         &self,
         node: &Rc<RefCell<RenderNode>>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
         for child in &node.borrow().children {
             self.calculate_size_by_child_recursive(child)?;
         }
@@ -304,14 +304,16 @@ impl<'a> RenderTree<'a> {
         match &node_ref.node_type {
             RenderNodeType::Item => {
                 let name = &node_ref.text_content;
-                println!("name={}", name);
                 node_ref.attr.absolute_size = self.package.get_space_size(name)?;
-                println!("get_space_size end");
             }
             RenderNodeType::Space => match node_ref.specified_style.display {
                 style::Display::Block => todo!(),
                 style::Display::Flex => {
-                    node_ref.attr.absolute_size = Self::cal_flex_child_size(&node_ref)
+                    let child_total_size = Self::cal_flex_child_size(&node_ref);
+                    node_ref
+                        .computed_style
+                        .size
+                        .assign_if_auto(child_total_size);
                 }
                 style::Display::Cube => todo!(),
             },
@@ -320,7 +322,7 @@ impl<'a> RenderTree<'a> {
         Ok(())
     }
 
-    fn calculate_pos_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> Result<(), anyhow::Error> {
+    fn calculate_pos_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> Result<()> {
         let mut node_ref = node.borrow_mut();
 
         if let Some(parent_rc) = node_ref.parent() {

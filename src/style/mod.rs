@@ -36,6 +36,63 @@ impl FromStr for SizeValue {
     }
 }
 
+impl From<FlexBasis> for SizeValue {
+    fn from(flex_basis: FlexBasis) -> Self {
+        match flex_basis {
+            FlexBasis::Length(length) => SizeValue::Length(length),
+            FlexBasis::Percentage(percentage) => SizeValue::Percentage(percentage),
+            FlexBasis::Auto => SizeValue::Auto,
+        }
+    }
+}
+
+impl From<Length> for SizeValue {
+    fn from(length: Length) -> Self {
+        Self::Length(length)
+    }
+}
+
+impl SizeValue {
+    pub fn assign_if_auto<T>(&mut self, other: T)
+    where
+        Self: From<T>,
+    {
+        if *self == Self::Auto {
+            *self = Self::from(other);
+        }
+    }
+}
+
+/// SpaceSize结构体，用于表示三个维度的尺寸值
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpaceSize {
+    pub x: SizeValue,
+    pub y: SizeValue,
+    pub z: SizeValue,
+}
+
+impl Default for SpaceSize {
+    fn default() -> Self {
+        Self {
+            x: SizeValue::Auto,
+            y: SizeValue::Auto,
+            z: SizeValue::Auto,
+        }
+    }
+}
+
+impl SpaceSize {
+    pub fn new(x: SizeValue, y: SizeValue, z: SizeValue) -> Self {
+        Self { x, y, z }
+    }
+
+    pub fn assign_if_auto(&mut self, other: Self) {
+        self.x.assign_if_auto(other.x);
+        self.y.assign_if_auto(other.y);
+        self.z.assign_if_auto(other.z);
+    }
+}
+
 /// Display属性枚举
 #[derive(Debug, Clone, PartialEq)]
 pub enum Display {
@@ -108,7 +165,7 @@ pub type Position = (Auto<AxisPos>, Auto<AxisPos>, Auto<AxisPos>);
 /// Style结构体，包含所有支持的样式属性
 #[derive(Debug, Clone, PartialEq)]
 pub struct Style {
-    pub size: Dim3<SizeValue>,           // size: 三个维度的尺寸 (x, y, z)
+    pub size: SpaceSize,                  // size: 三个维度的尺寸 (x, y, z)
     pub display: Display,                // display: block 或 flex
     pub justify_content: JustifyContent, // justify-content: 对齐方式
     pub flex_direction: FlexDirection,   // flex-direction: x, y, z
@@ -119,7 +176,7 @@ pub struct Style {
 impl Default for Style {
     fn default() -> Self {
         Style {
-            size: Dim3::default(),
+            size: SpaceSize::default(),
             display: Display::Cube,                         // 默认显示为cube
             justify_content: JustifyContent::default(),     // 默认
             flex_direction: FlexDirection::default(),       // 默认flex-direction
@@ -198,7 +255,7 @@ impl Style {
                     let y = SizeValue::from_str(size_parts[1])?;
                     let z = SizeValue::from_str(size_parts[2])?;
 
-                    style.size = Dim3::new(x, y, z);
+                    style.size = SpaceSize::new(x, y, z);
                 }
                 "display" => {
                     style.display = Display::from_str(value)?;
@@ -323,6 +380,24 @@ mod tests {
             AxisPos::Length(Length::from_cm(10))
         );
         assert!(AxisPos::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_flex_basis_to_size_value_conversion() {
+        // Test Length conversion
+        let flex_basis_length = FlexBasis::Length(Length::from_mm(100));
+        let size_value: SizeValue = flex_basis_length.into();
+        assert_eq!(size_value, SizeValue::Length(Length::from_mm(100)));
+
+        // Test Percentage conversion
+        let flex_basis_percentage = FlexBasis::Percentage(Percentage::new(50));
+        let size_value: SizeValue = flex_basis_percentage.into();
+        assert_eq!(size_value, SizeValue::Percentage(Percentage::new(50)));
+
+        // Test Auto conversion
+        let flex_basis_auto = FlexBasis::Auto;
+        let size_value: SizeValue = flex_basis_auto.into();
+        assert_eq!(size_value, SizeValue::Auto);
     }
 
     #[test]

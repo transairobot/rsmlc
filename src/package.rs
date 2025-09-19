@@ -1,5 +1,5 @@
 use crate::dim3::Dim3;
-use anyhow::{Result, anyhow};
+use crate::error::{RsmlError, Result};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fs;
@@ -8,7 +8,7 @@ use std::str::FromStr;
 use crate::base::Length;
 
 /// Custom deserializer for Dim3<Length> from string format "x y z"
-fn deserialize_dim3_length<'de, D>(deserializer: D) -> Result<Dim3<Length>, D::Error>
+fn deserialize_dim3_length<'de, D>(deserializer: D) -> anyhow::Result<Dim3<Length>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -73,12 +73,15 @@ impl Object {
     pub fn space_size(&self) -> Result<Dim3<Length>> {
         let parts: Vec<&str> = self.size.split_whitespace().collect();
         if parts.len() != 3 {
-            return Err(anyhow!("Invalid size format: {}", self.size));
+            return Err(RsmlError::ParseError {
+                field: "Object size".to_string(),
+                message: format!("Invalid size format: {}", self.size)
+            });
         }
 
-        let x = Length::from_str(parts[0]).map_err(|e| anyhow!("Failed to parse x size: {}", e))?;
-        let y = Length::from_str(parts[1]).map_err(|e| anyhow!("Failed to parse y size: {}", e))?;
-        let z = Length::from_str(parts[2]).map_err(|e| anyhow!("Failed to parse z size: {}", e))?;
+        let x = Length::from_str(parts[0])?;
+        let y = Length::from_str(parts[1])?;
+        let z = Length::from_str(parts[2])?;
 
         Ok(Dim3::new(x, y, z))
     }
@@ -119,7 +122,9 @@ impl Group {
                 *dependency.size_limit()
             } else {
                 // If it's neither an object nor a dependency, return an error
-                return Err(anyhow!("Item '{}' not found in package", item_name));
+                return Err(RsmlError::InvalidStructure { 
+                    message: format!("Item '{}' not found in package", item_name) 
+                });
             };
             
             max_x = if size.x > max_x { size.x } else { max_x };
@@ -145,11 +150,8 @@ pub struct Package {
 impl Package {
     /// 从文件解析Package配置
     pub fn from_file(file_path: &str) -> Result<Self> {
-        let contents = fs::read_to_string(file_path)
-            .map_err(|e| anyhow!("Failed to read package file '{}': {}", file_path, e))?;
-
-        toml::from_str(&contents)
-            .map_err(|e| anyhow!("Failed to parse package file '{}': {}", file_path, e))
+        let contents = fs::read_to_string(file_path)?;
+        toml::from_str(&contents).map_err(RsmlError::from)
     }
 
     /// 获取所有依赖项
@@ -191,10 +193,9 @@ impl Package {
         if let Some(group) = self.get_group(name) {
             return group.space_size(self);
         }
-        Err(anyhow!(
-            "Object or group with name '{}' not found in package",
-            name
-        ))
+        Err(RsmlError::InvalidStructure {
+            message: format!("Object or group with name '{}' not found in package", name)
+        })
     }
 
     /// 检查是否存在指定的依赖项

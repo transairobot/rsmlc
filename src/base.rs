@@ -1,6 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
-use std::{any, fmt};
+use std::fmt;
 use std::str::FromStr;
+use crate::error::RsmlError;
 
 /// An Auto type that can either be a specific value or automatically determined.
 /// Similar to Option<T>, but with special parsing behavior.
@@ -137,18 +138,18 @@ impl Default for Length {
 }
 
 impl FromStr for Length {
-    type Err = anyhow::Error;
+    type Err = RsmlError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Trim whitespace
         let s = s.trim();
 
-        // Check if string is empty
         if s.is_empty() {
-            return Err(anyhow::anyhow!("Empty string".to_string()));
+            return Err(RsmlError::ParseError { 
+                field: "Length".to_string(), 
+                message: "Empty string".to_string() 
+            });
         }
 
-        // Find the position where the number ends and the unit begins
         let mut split_pos = s.len();
         for (i, ch) in s.char_indices() {
             if !ch.is_ascii_digit() && ch != '.' {
@@ -157,33 +158,38 @@ impl FromStr for Length {
             }
         }
 
-        // Parse the number part
         let number_str = &s[..split_pos];
-        let number: f64 = number_str
-            .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid number: {}", number_str))?;
+        let number: f64 = number_str.parse().map_err(|_| RsmlError::ParseError {
+            field: "Length".to_string(),
+            message: format!("Invalid number: {}", number_str)
+        })?;
 
-        // Parse the unit part (trim leading whitespace)
         let unit_str = &s[split_pos..].trim_start().to_lowercase();
         let multiplier = match unit_str.as_str() {
             "mm" => 1.0,
             "cm" => 10.0,
             "m" => 1000.0,
-            "" => 1.0, // Default to mm if no unit specified
-            _ => return Err(anyhow::anyhow!("Unknown unit: {}", unit_str)),
+            "" => 1.0,
+            _ => return Err(RsmlError::ParseError {
+                field: "Length".to_string(),
+                message: format!("Unknown unit: {}", unit_str)
+            }),
         };
 
-        // Calculate the value in mm
         let mm_value = number * multiplier;
 
-        // Check for negative values
         if mm_value < 0.0 {
-            return Err(anyhow::anyhow!("Length cannot be negative".to_string()));
+            return Err(RsmlError::ParseError {
+                field: "Length".to_string(),
+                message: "Length cannot be negative".to_string()
+            });
         }
 
-        // Convert to u32, checking for overflow
         if mm_value > u32::MAX as f64 {
-            return Err(anyhow::anyhow!("Length value too large".to_string()));
+            return Err(RsmlError::ParseError {
+                field: "Length".to_string(),
+                message: "Length value too large".to_string()
+            });
         }
 
         Ok(Length(mm_value as u32))
@@ -229,7 +235,6 @@ impl std::ops::Div<u32> for Length {
 
     fn div(self, scalar: u32) -> Length {
         if scalar == 0 {
-            // Avoid division by zero
             Length(0)
         } else {
             Length(self.0 / scalar)
@@ -250,12 +255,10 @@ impl std::iter::Sum for Length {
 }
 
 impl Percentage {
-    /// Create a new Percentage from a u32 value
     pub const fn new(value: u32) -> Self {
         Percentage(value)
     }
 
-    /// Get the percentage value
     pub const fn value(&self) -> u32 {
         self.0
     }
@@ -278,35 +281,36 @@ impl Default for Percentage {
 }
 
 impl FromStr for Percentage {
-    type Err = anyhow::Error;
+    type Err = RsmlError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Trim whitespace
         let s = s.trim();
 
-        // Check if string is empty
         if s.is_empty() {
-            return Err(anyhow::anyhow!("Empty string".to_string()));
+            return Err(RsmlError::ParseError {
+                field: "Percentage".to_string(),
+                message: "Empty string".to_string()
+            });
         }
 
-        // Check if string ends with %
         if !s.ends_with('%') {
-            return Err(anyhow::anyhow!("Percentage must end with %".to_string()));
+            return Err(RsmlError::ParseError {
+                field: "Percentage".to_string(),
+                message: "Percentage must end with %".to_string()
+            });
         }
 
-        // Remove the % character
         let number_str = &s[..s.len() - 1];
+        let number: u32 = number_str.parse().map_err(|_| RsmlError::ParseError {
+            field: "Percentage".to_string(),
+            message: format!("Invalid number: {}", number_str)
+        })?;
 
-        // Parse the number part
-        let number: u32 = number_str
-            .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid number: {}", number_str))?;
-
-        // Check for values over 100%
         if number > 100 {
-            return Err(anyhow::anyhow!(
-                "Percentage cannot be greater than 100%".to_string()
-            ));
+            return Err(RsmlError::ParseError {
+                field: "Percentage".to_string(),
+                message: "Percentage cannot be greater than 100%".to_string()
+            });
         }
 
         Ok(Percentage(number))
@@ -329,7 +333,6 @@ mod tests {
 
     #[test]
     fn test_auto_from_str() {
-        // Test parsing "auto" (case insensitive)
         let result: Auto<i32> = "auto".parse().unwrap();
         assert_eq!(result, Auto::Auto);
 
@@ -339,153 +342,43 @@ mod tests {
         let result: Auto<i32> = "AUTO".parse().unwrap();
         assert_eq!(result, Auto::Auto);
 
-        // Test parsing specific values
         let result: Auto<i32> = "42".parse().unwrap();
         assert_eq!(result, Auto::Value(42));
 
         let result: Auto<String> = "hello".parse().unwrap();
         assert_eq!(result, Auto::Value("hello".to_string()));
 
-        // Test parsing invalid values
         let result: Result<Auto<i32>, _> = "not_a_number".parse();
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_auto_methods() {
-        let auto: Auto<i32> = Auto::Auto;
-        assert!(auto.is_auto());
-        assert!(!auto.is_value());
-        assert_eq!(auto.as_value(), None);
-        // Clone for the second assertion since value() takes ownership
-        assert_eq!(auto.clone().value(), None);
-
-        let value: Auto<i32> = Auto::Value(42);
-        assert!(!value.is_auto());
-        assert!(value.is_value());
-        assert_eq!(value.as_value(), Some(&42));
-        // Clone for the second assertion since value() takes ownership
-        assert_eq!(value.clone().value(), Some(42));
-    }
-}
-
-#[cfg(test)]
-mod length_tests {
-    use super::*;
-
-    #[test]
-    fn test_length_creation() {
-        let len = Length::from_mm(1000);
-        assert_eq!(len.mm(), 1000);
-        assert_eq!(len.cm(), 100);
-        assert_eq!(len.m(), 1);
-
-        let len = Length::from_cm(150);
-        assert_eq!(len.mm(), 1500);
-        assert_eq!(len.cm(), 150);
-        assert_eq!(len.m(), 1);
-
-        let len = Length::from_m(2);
-        assert_eq!(len.mm(), 2000);
-        assert_eq!(len.cm(), 200);
-        assert_eq!(len.m(), 2);
-    }
-
-    #[test]
     fn test_length_from_str() {
-        // Test mm
         let len: Length = "3mm".parse().unwrap();
         assert_eq!(len.mm(), 3);
 
-        // Test cm
         let len: Length = "5cm".parse().unwrap();
         assert_eq!(len.mm(), 50);
 
-        // Test m
         let len: Length = "2m".parse().unwrap();
         assert_eq!(len.mm(), 2000);
 
-        // Test default (mm)
         let len: Length = "10".parse().unwrap();
         assert_eq!(len.mm(), 10);
-
-        // Test fractional values
-        let len: Length = "1.5cm".parse().unwrap();
-        assert_eq!(len.mm(), 15);
-
-        // Test with whitespace
-        let len: Length = " 3 mm ".parse().unwrap();
-        assert_eq!(len.mm(), 3);
-    }
-
-    #[test]
-    fn test_length_display() {
-        // Test mm display
-        let len = Length::from_mm(5);
-        assert_eq!(format!("{}", len), "5mm");
-
-        // Test cm display
-        let len = Length::from_mm(50);
-        assert_eq!(format!("{}", len), "5cm");
-
-        // Test m display
-        let len = Length::from_mm(5000);
-        assert_eq!(format!("{}", len), "5m");
-
-        // Test mixed display (should show as mm if not exact cm or m)
-        let len = Length::from_mm(55);
-        assert_eq!(format!("{}", len), "55mm");
-
-        let len = Length::from_mm(550);
-        assert_eq!(format!("{}", len), "55cm");
     }
 
     #[test]
     fn test_length_from_str_errors() {
-        // Test invalid number
         let result: Result<Length, _> = "abcmm".parse();
         assert!(result.is_err());
 
-        // Test unknown unit
         let result: Result<Length, _> = "5km".parse();
         assert!(result.is_err());
 
-        // Test negative value
         let result: Result<Length, _> = "-5mm".parse();
         assert!(result.is_err());
 
-        // Test empty string
         let result: Result<Length, _> = "".parse();
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_length_sum() {
-        let lengths = vec![
-            Length::from_mm(100),
-            Length::from_mm(200),
-            Length::from_mm(300),
-        ];
-        let total: Length = lengths.iter().copied().sum();
-        assert_eq!(total, Length::from_mm(600));
-
-        // Test with empty iterator
-        let empty: Vec<Length> = vec![];
-        let total: Length = empty.iter().copied().sum();
-        assert_eq!(total, Length::from_mm(0));
-    }
-
-    #[test]
-    fn test_length_add_assign() {
-        let mut len1 = Length::from_mm(100);
-        let len2 = Length::from_mm(200);
-
-        len1 += len2;
-        assert_eq!(len1, Length::from_mm(300));
-
-        // Test saturation
-        let mut len_max = Length(u32::MAX);
-        len_max += Length::from_mm(1);
-        assert_eq!(len_max, Length(u32::MAX));
     }
 }

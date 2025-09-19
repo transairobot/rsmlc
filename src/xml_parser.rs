@@ -3,7 +3,7 @@ use quick_xml::Reader;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::fs::File;
-use anyhow::Result;
+use crate::error::{RsmlError, Result};
 
 #[derive(Debug, Clone)]
 pub struct Element {
@@ -97,14 +97,16 @@ pub fn parse_xml_file(file_path: &str) -> Result<Element> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(anyhow::anyhow!("Error at position {}: {:?}", xml_reader.buffer_position(), e)),
+            Err(e) => return Err(RsmlError::XmlParse(e)),
             _ => (),
         }
         buf.clear();
     }
     
     if stack.is_empty() {
-        Err(anyhow::anyhow!("No root element found"))
+        Err(RsmlError::InvalidStructure { 
+            message: "No root element found".to_string() 
+        })
     } else {
         Ok(stack.remove(0))
     }

@@ -4,11 +4,13 @@ mod xml_parser;
 mod render_tree;
 mod package;
 mod dim3;
+mod error;
 
 use anyhow::Result;
 use xml_parser::{parse_xml_file, Element};
 use render_tree::RenderTree;
 use package::Package;
+use error::RsmlError;
 
 fn main() -> Result<()> {
     // 解析package.toml文件
@@ -82,7 +84,9 @@ fn print_element(element: &Element, depth: usize) {
 fn validate_rsml_structure(element: &Element) -> Result<()> {
     // 验证根元素是rsml
     if element.name != "rsml" {
-        return Err(anyhow::anyhow!("根元素应该是'rsml'，但实际是'{}'", element.name));
+        return Err(RsmlError::InvalidStructure { 
+            message: format!("根元素应该是'rsml'，但实际是'{}'", element.name) 
+        }.into());
     }
     
     // 验证必须有head和body子元素
@@ -90,11 +94,11 @@ fn validate_rsml_structure(element: &Element) -> Result<()> {
     let has_body = element.find_child("body").is_some();
     
     if !has_head {
-        return Err(anyhow::anyhow!("缺少必需的'head'元素"));
+        return Err(RsmlError::MissingElement { element: "head".to_string() }.into());
     }
     
     if !has_body {
-        return Err(anyhow::anyhow!("缺少必需的'body'元素"));
+        return Err(RsmlError::MissingElement { element: "body".to_string() }.into());
     }
     
     println!("\n结构验证通过:");

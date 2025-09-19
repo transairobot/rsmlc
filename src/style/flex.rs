@@ -1,4 +1,5 @@
 use crate::base::{Length, Percentage};
+use crate::style::{SizeValue, SpaceSize};
 use anyhow::{Result, anyhow};
 use std::str::FromStr;
 
@@ -37,6 +38,27 @@ impl FromStr for FlexBasis {
             match Length::from_str(&s) {
                 Ok(length) => Ok(FlexBasis::Length(length)),
                 Err(e) => Err(anyhow!("Invalid flex-basis value '{}': {}", s, e)),
+            }
+        }
+    }
+}
+
+impl FlexBasis {
+    /// Convert FlexBasis to SpaceSize based on FlexDirection
+    /// Only the dimension corresponding to the flex direction will have the flex-basis value,
+    /// other dimensions will be set to SizeValue::Auto
+    pub fn to_space_size(&self, direction: &FlexDirection) -> SpaceSize {
+        let size_value: SizeValue = self.clone().into(); // Convert FlexBasis to SizeValue
+        
+        match direction {
+            FlexDirection::X | FlexDirection::ReverseX => {
+                SpaceSize::new(size_value, SizeValue::Auto, SizeValue::Auto)
+            }
+            FlexDirection::Y | FlexDirection::ReverseY => {
+                SpaceSize::new(SizeValue::Auto, size_value, SizeValue::Auto)
+            }
+            FlexDirection::Z | FlexDirection::ReverseZ => {
+                SpaceSize::new(SizeValue::Auto, SizeValue::Auto, size_value)
             }
         }
     }
@@ -173,5 +195,60 @@ mod tests {
             FlexDirection::ReverseZ
         );
         assert!(FlexDirection::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_flex_basis_to_space_size() {
+        // Test with Length
+        let flex_basis = FlexBasis::Length(Length::from_mm(100));
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::X),
+            SpaceSize::new(SizeValue::Length(Length::from_mm(100)), SizeValue::Auto, SizeValue::Auto)
+        );
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::Y),
+            SpaceSize::new(SizeValue::Auto, SizeValue::Length(Length::from_mm(100)), SizeValue::Auto)
+        );
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::Z),
+            SpaceSize::new(SizeValue::Auto, SizeValue::Auto, SizeValue::Length(Length::from_mm(100)))
+        );
+        
+        // Test with Percentage
+        let flex_basis = FlexBasis::Percentage(Percentage::new(50));
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::X),
+            SpaceSize::new(SizeValue::Percentage(Percentage::new(50)), SizeValue::Auto, SizeValue::Auto)
+        );
+        
+        // Test with Auto
+        let flex_basis = FlexBasis::Auto;
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::X),
+            SpaceSize::new(SizeValue::Auto, SizeValue::Auto, SizeValue::Auto)
+        );
+        
+        // Test with reverse directions (should behave the same as normal directions)
+        let flex_basis = FlexBasis::Length(Length::from_mm(100));
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::ReverseX),
+            flex_basis.to_space_size(&FlexDirection::X)
+        );
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::ReverseY),
+            flex_basis.to_space_size(&FlexDirection::Y)
+        );
+        
+        assert_eq!(
+            flex_basis.to_space_size(&FlexDirection::ReverseZ),
+            flex_basis.to_space_size(&FlexDirection::Z)
+        );
     }
 }
