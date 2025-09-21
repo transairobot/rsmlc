@@ -64,6 +64,60 @@ impl FlexBasis {
     }
 }
 
+/// align-items属性枚举
+#[derive(Debug, Clone, PartialEq)]
+pub enum AlignItem {
+    FlexStart,
+    FlexEnd,
+    Center,
+}
+
+impl FromStr for AlignItem {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "flex-start" => Ok(AlignItem::FlexStart),
+            "flex-end" => Ok(AlignItem::FlexEnd),
+            "center" => Ok(AlignItem::Center),
+            _ => Err(anyhow!("Invalid align-item value: {}", s)),
+        }
+    }
+}
+
+/// align-items属性，支持两个交叉轴的对齐方式
+#[derive(Debug, Clone, PartialEq)]
+pub struct AlignItems {
+    pub cross1: AlignItem,  // 第一个交叉轴对齐方式
+    pub cross2: AlignItem,  // 第二个交叉轴对齐方式
+}
+
+impl Default for AlignItems {
+    fn default() -> Self {
+        Self {
+            cross1: AlignItem::FlexStart,
+            cross2: AlignItem::FlexStart,
+        }
+    }
+}
+
+impl FromStr for AlignItems {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let parts: Vec<&str> = s.trim().split_whitespace().collect();
+        
+        if parts.len() != 2 {
+            return Err(anyhow!("align-items must have exactly 2 values (cross1 cross2)"));
+        }
+        
+        let cross1 = AlignItem::from_str(parts[0])?;
+        let cross2 = AlignItem::from_str(parts[1])?;
+        
+        Ok(AlignItems { cross1, cross2 })
+    }
+}
+
 /// justify-content属性枚举
 #[derive(Debug, Clone, PartialEq)]
 pub enum JustifyContent {
@@ -146,6 +200,38 @@ mod tests {
             FlexBasis::Length(Length::from_mm(100))
         );
         assert!(FlexBasis::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_align_item_from_str() {
+        assert_eq!(
+            AlignItem::from_str("flex-start").unwrap(),
+            AlignItem::FlexStart
+        );
+        assert_eq!(
+            AlignItem::from_str("flex-end").unwrap(),
+            AlignItem::FlexEnd
+        );
+        assert_eq!(
+            AlignItem::from_str("center").unwrap(),
+            AlignItem::Center
+        );
+        assert!(AlignItem::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_align_items_from_str() {
+        let align_items = AlignItems::from_str("flex-start center").unwrap();
+        assert_eq!(align_items.cross1, AlignItem::FlexStart);
+        assert_eq!(align_items.cross2, AlignItem::Center);
+        
+        let align_items = AlignItems::from_str("flex-end flex-start").unwrap();
+        assert_eq!(align_items.cross1, AlignItem::FlexEnd);
+        assert_eq!(align_items.cross2, AlignItem::FlexStart);
+        
+        assert!(AlignItems::from_str("invalid").is_err());
+        assert!(AlignItems::from_str("flex-start").is_err());
+        assert!(AlignItems::from_str("flex-start center extra").is_err());
     }
 
     #[test]

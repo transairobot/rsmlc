@@ -34,11 +34,15 @@
           <group select="first"> bottles </group>   <!-- 从bottle group中选择第一个bottle-->
         </space>
         <object> table_plane </object>
-        <space> <!-- table legs-->
-          <object id="leg1"> table_leg </object> <!--table_leg定义在rsml_config.toml中-->
-          <object id="leg2"> table_leg </object>
-          <object id="leg3"> table_leg </object>
-          <object id="leg4"> table_leg </object>
+        <space id="table-legs" style="size:100% 100% auto;flex-direction:y"> <!-- -->
+          <space id="left-legs" style="flex-direction:x">
+            <object id="leg1"> table_leg </object> <!--table_leg定义在rsml_config.toml中-->
+            <object id="leg2"> table_leg </object>
+          </space>
+          <space id="right-legs" style="flex-direction:x">
+            <object id="leg3"> table_leg </object>
+            <object id="leg4"> table_leg </object>
+          </space>
         </space>
       </space>
       <object> floor </object>

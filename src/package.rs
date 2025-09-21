@@ -186,7 +186,6 @@ impl Package {
 
     /// 获取对象或组的空间尺寸
     pub fn get_space_size(&self, name: &str) -> Result<Dim3<Length>> {
-        println!("get_space_size1 name={}", name);
         if let Some(object) = self.get_object(name) {
             return object.space_size();
         }

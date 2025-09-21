@@ -39,12 +39,6 @@ fn main() -> Result<()> {
     println!("\n正在计算尺寸和布局...");
     render_tree.calculate()?;
     
-    // 打印渲染树
-    println!("\n渲染树:");
-    render_tree.print_computed();
-    
-    println!("\nXML文件解析、渲染树构建和布局计算成功完成！");
-    
     Ok(())
 }
 
