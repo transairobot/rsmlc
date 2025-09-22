@@ -597,7 +597,7 @@ mod tests {
         let style = Style::from_style_string(style_str).unwrap();
 
         // 验证size
-        assert_eq!(style.size_x(), &SizeValue::Length(Length::from_m(10)));
+        assert_eq!(style.size_x(), &SizeValue::Length(Length::from_m(10.0)));
         assert_eq!(style.size_y(), &SizeValue::Percentage(Percentage::new(50)));
         assert_eq!(style.size_z(), &SizeValue::Auto);
 
@@ -662,7 +662,7 @@ mod tests {
         // 测试PositionValue的解析
         assert_eq!(PositionValue::from_str("auto").unwrap(), PositionValue::Auto);
         assert_eq!(PositionValue::from_str("10cm").unwrap(), PositionValue::Length(Length::from_cm(10)));
-        assert_eq!(PositionValue::from_str("5m").unwrap(), PositionValue::Length(Length::from_m(5)));
+        assert_eq!(PositionValue::from_str("5m").unwrap(), PositionValue::Length(Length::from_m(5.0)));
         assert_eq!(PositionValue::from_str("20mm").unwrap(), PositionValue::Length(Length::from_mm(20)));
     }
 
@@ -671,7 +671,7 @@ mod tests {
         // 测试PositionValue的显示
         assert_eq!(format!("{}", PositionValue::Auto), "auto");
         assert_eq!(format!("{}", PositionValue::Length(Length::from_cm(10))), "10cm");
-        assert_eq!(format!("{}", PositionValue::Length(Length::from_m(5))), "5m");
+        assert_eq!(format!("{}", PositionValue::Length(Length::from_m(5.0))), "5m");
     }
 
     #[test]
@@ -688,7 +688,7 @@ mod tests {
         // 测试SpacePosition的显示
         let position = SpacePosition {
             x: PositionValue::Length(Length::from_cm(10)),
-            y: PositionValue::Length(Length::from_m(5)),
+            y: PositionValue::Length(Length::from_m(5.0)),
             z: PositionValue::Auto,
         };
         assert_eq!(format!("{}", position), "10cm 5m auto");
@@ -704,10 +704,10 @@ mod tests {
 
     #[test]
     fn test_space_size_from_dim3_length() {
-        let dim3 = Dim3::new(Length::from_m(10), Length::from_cm(20), Length::from_mm(30));
+        let dim3 = Dim3::new(Length::from_m(10.0), Length::from_cm(20), Length::from_mm(30));
         let space_size = SpaceSize::from_dim3_length(dim3);
 
-        assert_eq!(space_size.x, SizeValue::Length(Length::from_m(10)));
+        assert_eq!(space_size.x, SizeValue::Length(Length::from_m(10.0)));
         assert_eq!(space_size.y, SizeValue::Length(Length::from_cm(20)));
         assert_eq!(space_size.z, SizeValue::Length(Length::from_mm(30)));
     }

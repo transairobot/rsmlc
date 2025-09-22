@@ -32,6 +32,12 @@ pub enum RsmlError {
     #[error("Style computation error: {message}")]
     StyleComputation { message: String },
 
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
+    #[error("API error: status={status}, message={message}")]
+    ApiError { status: u16, message: String },
+
     #[error("Cube display must explicit set size: length(mm/cm) or percentage(%)")]
     CubeSizeError,
 }

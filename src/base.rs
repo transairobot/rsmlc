@@ -1,7 +1,7 @@
+use crate::error::RsmlError;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use crate::error::RsmlError;
 
 /// An Auto type that can either be a specific value or automatically determined.
 /// Similar to Option<T>, but with special parsing behavior.
@@ -99,8 +99,8 @@ impl Length {
     }
 
     /// Create a new Length from meters
-    pub const fn from_m(m: u32) -> Self {
-        Length(m * 1000)
+    pub const fn from_m(m: f64) -> Self {
+        Length((m * 1000.0) as u32)
     }
 
     /// Get the length in millimeters
@@ -144,9 +144,9 @@ impl FromStr for Length {
         let s = s.trim();
 
         if s.is_empty() {
-            return Err(RsmlError::ParseError { 
-                field: "Length".to_string(), 
-                message: "Empty string".to_string() 
+            return Err(RsmlError::ParseError {
+                field: "Length".to_string(),
+                message: "Empty string".to_string(),
             });
         }
 
@@ -161,7 +161,7 @@ impl FromStr for Length {
         let number_str = &s[..split_pos];
         let number: f64 = number_str.parse().map_err(|_| RsmlError::ParseError {
             field: "Length".to_string(),
-            message: format!("Invalid number: {}", number_str)
+            message: format!("Invalid number: {}", number_str),
         })?;
 
         let unit_str = &s[split_pos..].trim_start().to_lowercase();
@@ -170,10 +170,12 @@ impl FromStr for Length {
             "cm" => 10.0,
             "m" => 1000.0,
             "" => 1.0,
-            _ => return Err(RsmlError::ParseError {
-                field: "Length".to_string(),
-                message: format!("Unknown unit: {}", unit_str)
-            }),
+            _ => {
+                return Err(RsmlError::ParseError {
+                    field: "Length".to_string(),
+                    message: format!("Unknown unit: {}", unit_str),
+                });
+            }
         };
 
         let mm_value = number * multiplier;
@@ -181,14 +183,14 @@ impl FromStr for Length {
         if mm_value < 0.0 {
             return Err(RsmlError::ParseError {
                 field: "Length".to_string(),
-                message: "Length cannot be negative".to_string()
+                message: "Length cannot be negative".to_string(),
             });
         }
 
         if mm_value > u32::MAX as f64 {
             return Err(RsmlError::ParseError {
                 field: "Length".to_string(),
-                message: "Length value too large".to_string()
+                message: "Length value too large".to_string(),
             });
         }
 
@@ -289,27 +291,27 @@ impl FromStr for Percentage {
         if s.is_empty() {
             return Err(RsmlError::ParseError {
                 field: "Percentage".to_string(),
-                message: "Empty string".to_string()
+                message: "Empty string".to_string(),
             });
         }
 
         if !s.ends_with('%') {
             return Err(RsmlError::ParseError {
                 field: "Percentage".to_string(),
-                message: "Percentage must end with %".to_string()
+                message: "Percentage must end with %".to_string(),
             });
         }
 
         let number_str = &s[..s.len() - 1];
         let number: u32 = number_str.parse().map_err(|_| RsmlError::ParseError {
             field: "Percentage".to_string(),
-            message: format!("Invalid number: {}", number_str)
+            message: format!("Invalid number: {}", number_str),
         })?;
 
         if number > 100 {
             return Err(RsmlError::ParseError {
                 field: "Percentage".to_string(),
-                message: "Percentage cannot be greater than 100%".to_string()
+                message: "Percentage cannot be greater than 100%".to_string(),
             });
         }
 

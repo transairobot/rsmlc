@@ -115,7 +115,7 @@ impl<'a> RenderTree<'a> {
         // Find the body node and start position calculation from there
         if let Some(body_node) = self.find_body_node(&self.root) {
             {
-                let len = SizeValue::Length(Length::from_m(100));
+                let len = SizeValue::Length(Length::from_m(100.0));
                 body_node.borrow_mut().computed_style.size = SpaceSize {
                     x: len.clone(),
                     y: len.clone(),
@@ -364,7 +364,7 @@ impl<'a> RenderTree<'a> {
 
         // 计算子元素的总尺寸
         let mut total_child_size =
-            Dim3::new(Length::from_m(0), Length::from_m(0), Length::from_m(0));
+            Dim3::new(Length::from_mm(0), Length::from_mm(0), Length::from_mm(0));
         let mut child_lengths = Vec::new();
 
         // 收集子元素的尺寸信息
@@ -412,8 +412,8 @@ impl<'a> RenderTree<'a> {
                 for (i, child_x_pos) in positions.iter().enumerate() {
                     let mut pos = Dim3::new(
                         Length::from_mm(*child_x_pos as u32),
-                        Length::from_m(0),
-                        Length::from_m(0),
+                        Length::from_mm(0),
+                        Length::from_mm(0),
                     );
 
                     // 根据align-items计算Y和Z轴位置
@@ -422,14 +422,14 @@ impl<'a> RenderTree<'a> {
                         
                         // 计算Y轴位置（第一个交叉轴）
                         pos.y = match align_items.cross1 {
-                            style::AlignItem::FlexStart => Length::from_m(0),
+                            style::AlignItem::FlexStart => Length::from_m(0.0),
                             style::AlignItem::FlexEnd => Length::from_mm((node_length.y.mm() - child_size.y.mm()) as u32),
                             style::AlignItem::Center => Length::from_mm(((node_length.y.mm() - child_size.y.mm()) / 2) as u32),
                         };
                         
                         // 计算Z轴位置（第二个交叉轴）
                         pos.z = match align_items.cross2 {
-                            style::AlignItem::FlexStart => Length::from_m(0),
+                            style::AlignItem::FlexStart => Length::from_m(0.0),
                             style::AlignItem::FlexEnd => Length::from_mm((node_length.z.mm() - child_size.z.mm()) as u32),
                             style::AlignItem::Center => Length::from_mm(((node_length.z.mm() - child_size.z.mm()) / 2) as u32),
                         };
@@ -458,9 +458,9 @@ impl<'a> RenderTree<'a> {
                 // 计算每个子元素的完整位置
                 for (i, child_y_pos) in positions.iter().enumerate() {
                     let mut pos = Dim3::new(
-                        Length::from_m(0),
+                        Length::from_m(0.0),
                         Length::from_mm(*child_y_pos as u32),
-                        Length::from_m(0),
+                        Length::from_m(0.0),
                     );
 
                     // 根据align-items计算X和Z轴位置
@@ -469,14 +469,14 @@ impl<'a> RenderTree<'a> {
                         
                         // 计算X轴位置（第一个交叉轴）
                         pos.x = match align_items.cross1 {
-                            style::AlignItem::FlexStart => Length::from_m(0),
+                            style::AlignItem::FlexStart => Length::from_m(0.0),
                             style::AlignItem::FlexEnd => Length::from_mm((node_length.x.mm() - child_size.x.mm()) as u32),
                             style::AlignItem::Center => Length::from_mm(((node_length.x.mm() - child_size.x.mm()) / 2) as u32),
                         };
                         
                         // 计算Z轴位置（第二个交叉轴）
                         pos.z = match align_items.cross2 {
-                            style::AlignItem::FlexStart => Length::from_m(0),
+                            style::AlignItem::FlexStart => Length::from_m(0.0),
                             style::AlignItem::FlexEnd => Length::from_mm((node_length.z.mm() - child_size.z.mm()) as u32),
                             style::AlignItem::Center => Length::from_mm(((node_length.z.mm() - child_size.z.mm()) / 2) as u32),
                         };
@@ -505,8 +505,8 @@ impl<'a> RenderTree<'a> {
                 // 计算每个子元素的完整位置
                 for (i, child_z_pos) in positions.iter().enumerate() {
                     let mut pos = Dim3::new(
-                        Length::from_m(0),
-                        Length::from_m(0),
+                        Length::from_m(0.0),
+                        Length::from_m(0.0),
                         Length::from_mm(*child_z_pos as u32),
                     );
 
@@ -516,14 +516,14 @@ impl<'a> RenderTree<'a> {
                         
                         // 计算X轴位置（第一个交叉轴）
                         pos.x = match align_items.cross1 {
-                            style::AlignItem::FlexStart => Length::from_m(0),
+                            style::AlignItem::FlexStart => Length::from_m(0.0),
                             style::AlignItem::FlexEnd => Length::from_mm((node_length.x.mm() - child_size.x.mm()) as u32),
                             style::AlignItem::Center => Length::from_mm(((node_length.x.mm() - child_size.x.mm()) / 2) as u32),
                         };
                         
                         // 计算Y轴位置（第二个交叉轴）
                         pos.y = match align_items.cross2 {
-                            style::AlignItem::FlexStart => Length::from_m(0),
+                            style::AlignItem::FlexStart => Length::from_m(0.0),
                             style::AlignItem::FlexEnd => Length::from_mm((node_length.y.mm() - child_size.y.mm()) as u32),
                             style::AlignItem::Center => Length::from_mm(((node_length.y.mm() - child_size.y.mm()) / 2) as u32),
                         };

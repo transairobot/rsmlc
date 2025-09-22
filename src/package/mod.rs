@@ -3,9 +3,11 @@ use crate::error::{RsmlError, Result};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 
 use crate::base::Length;
+use crate::api;
 
 /// Custom deserializer for Dim3<Length> from string format "x y z"
 fn deserialize_dim3_length<'de, D>(deserializer: D) -> anyhow::Result<Dim3<Length>, D::Error>
@@ -207,9 +209,49 @@ impl Package {
         self.objects.contains_key(name)
     }
 
-    /// 检查是否存在指定的组
     pub fn has_group(&self, name: &str) -> bool {
         self.groups.iter().any(|group| group.name == name)
+    }
+
+    /// Downloads all dependencies to a specified base path.
+    pub fn download_all_dependencies(&self, base_path: &str) -> Result<()> {
+        const ASSETS_DIR: &str = "assets";
+        let root_path = Path::new(base_path).join(ASSETS_DIR);
+
+        for (dep_name, dep_config) in &self.dependencies {
+            println!("Fetching category for dependency: {}", dep_name);
+            let category = api::fetch_dependency(dep_name)?;
+
+            println!("Fetching assets for category ID: {}", category.id);
+            // Note: This example only fetches the first page of assets.
+            // A complete implementation would handle pagination.
+            let assets_resp = api::fetch_assets_in_category(category.id, 1, 1)?;
+
+            let size_limit = dep_config.size_limit();
+
+            for asset in assets_resp.items {
+                let asset_size = Dim3::new(
+                    Length::from_m(asset.x_len),
+                    Length::from_m(asset.y_len),
+                    Length::from_m(asset.z_len),
+                );
+
+                // Check if the asset is within the size limit
+                if asset_size.x <= size_limit.x && asset_size.y <= size_limit.y && asset_size.z <= size_limit.z {
+                    println!("Found matching asset: {} ({:?})", asset.name, asset_size);
+
+                    // Extract filename from URL
+                    let filename = asset.resource_url.split('/').last().unwrap_or("unknown_asset");
+                    let dest_path = root_path.join(dep_name).join(filename);
+
+                    println!("Downloading to {:?}...", dest_path);
+                    api::download_file(&asset.resource_url, &dest_path)?;
+                    println!("Download complete.");
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -314,8 +356,8 @@ mod tests {
 
         // Test getting size of an object
         let table_plane_size = package.get_space_size("table_plane").unwrap();
-        assert_eq!(table_plane_size.x, Length::from_m(1));
-        assert_eq!(table_plane_size.y, Length::from_m(1));
+        assert_eq!(table_plane_size.x, Length::from_m(1.0));
+        assert_eq!(table_plane_size.y, Length::from_m(1.0));
         assert_eq!(table_plane_size.z, Length::from_cm(10));
 
         // Test getting size of a group that contains a dependency

@@ -5,6 +5,7 @@ mod render_tree;
 mod package;
 mod dim3;
 mod error;
+mod api;
 
 use anyhow::Result;
 use xml_parser::{parse_xml_file, Element};
