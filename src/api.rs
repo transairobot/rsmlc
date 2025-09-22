@@ -39,7 +39,7 @@ pub struct Robot3DAssetCategoryRespItem {
 /// Generic API response wrapper
 #[derive(Deserialize, Debug)]
 pub struct ApiResponse<T> {
-    pub data: T,
+    pub data: Option<T>,
     pub code: i32,
     pub message: String,
 }
@@ -65,7 +65,14 @@ pub fn fetch_dependency(name: &str) -> Result<Robot3DAssetCategoryRespItem> {
         
         // Check if the API returned a success code (assuming 0 or 200 means success)
         if api_response.code == 0 || api_response.code == 200 {
-            Ok(api_response.data)
+            // Check if data is present
+            match api_response.data {
+                Some(data) => Ok(data),
+                None => Err(RsmlError::ApiError {
+                    status: api_response.code as u16,
+                    message: "API returned success code but no data".to_string(),
+                }),
+            }
         } else {
             // Handle API-level errors (like authentication failures)
             Err(RsmlError::ApiError {
@@ -108,7 +115,14 @@ pub fn fetch_assets_in_category(
         
         // Check if the API returned a success code (assuming 0 or 200 means success)
         if api_response.code == 0 || api_response.code == 200 {
-            Ok(api_response.data)
+            // Check if data is present
+            match api_response.data {
+                Some(data) => Ok(data),
+                None => Err(RsmlError::ApiError {
+                    status: api_response.code as u16,
+                    message: "API returned success code but no data".to_string(),
+                }),
+            }
         } else {
             // Handle API-level errors (like authentication failures)
             Err(RsmlError::ApiError {
