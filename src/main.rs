@@ -16,6 +16,7 @@ use error::RsmlError;
 fn main() -> Result<()> {
     // 解析package.toml文件
     let package = Package::from_file("package.toml")?;
+    package.download_all_dependencies("./assets")?;
     println!("Package configuration loaded successfully!");
     println!("Dependencies: {:?}", package.dependencies.keys().collect::<Vec<_>>());
     println!("Objects: {:?}", package.objects.keys().collect::<Vec<_>>());

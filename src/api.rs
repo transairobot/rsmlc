@@ -40,6 +40,8 @@ pub struct Robot3DAssetCategoryRespItem {
 #[derive(Deserialize, Debug)]
 pub struct ApiResponse<T> {
     pub data: T,
+    pub code: i32,
+    pub message: String,
 }
 
 /// Fetches dependency information from the remote asset server.
@@ -60,7 +62,17 @@ pub fn fetch_dependency(name: &str) -> Result<Robot3DAssetCategoryRespItem> {
                 field: "API Response".to_string(),
                 message: e.to_string(),
             })?;
-        Ok(api_response.data)
+        
+        // Check if the API returned a success code (assuming 0 or 200 means success)
+        if api_response.code == 0 || api_response.code == 200 {
+            Ok(api_response.data)
+        } else {
+            // Handle API-level errors (like authentication failures)
+            Err(RsmlError::ApiError {
+                status: api_response.code as u16,
+                message: api_response.message,
+            })
+        }
     } else {
         Err(RsmlError::ApiError {
             status: response.status().as_u16(),
@@ -93,7 +105,17 @@ pub fn fetch_assets_in_category(
                 field: "API Response".to_string(),
                 message: e.to_string(),
             })?;
-        Ok(api_response.data)
+        
+        // Check if the API returned a success code (assuming 0 or 200 means success)
+        if api_response.code == 0 || api_response.code == 200 {
+            Ok(api_response.data)
+        } else {
+            // Handle API-level errors (like authentication failures)
+            Err(RsmlError::ApiError {
+                status: api_response.code as u16,
+                message: api_response.message,
+            })
+        }
     } else {
         Err(RsmlError::ApiError {
             status: response.status().as_u16(),
