@@ -1,9 +1,10 @@
 use crate::base::Length;
 use crate::dim3::Dim3;
 use crate::error::{Result, RsmlError};
-use crate::package::Package;
+use crate::package::{Package, Object};
 use crate::style::{self, FlexDirection, SpacePosition, SpaceSize, Style};
 use crate::xml_parser::Element;
+use rand::prelude::IndexedRandom;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use style::SizeValue;
@@ -15,17 +16,9 @@ pub enum RenderNodeType {
     Item,  // Group and Object
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct AbsoluteSpace {
-    pub pos: Dim3<Length>,
-}
 
-#[derive(Debug, Default, Clone)]
-pub struct NodeAttr {
-    pub absolute_size: Dim3<Length>,
-    pub absolute_pos: Dim3<Length>,
-    pub flex_child_space: Vec<AbsoluteSpace>,
-}
+
+
 
 /// 渲染节点结构体
 #[derive(Debug)]
@@ -45,9 +38,10 @@ pub struct RenderNode {
     pub specified_style: Style,
 
     /// 计算后的样式
-    pub computed_style: Style,
+    pub computed_style: style::ComputedStyle,
 
-    pub attr: NodeAttr,
+    /// Select attribute for groups (if applicable)
+    pub select_attr: Option<String>,
 
     /// 父节点（弱引用，避免循环引用）
     pub parent: Weak<RefCell<RenderNode>>,
@@ -65,8 +59,8 @@ impl RenderNode {
             tag_name,
             text_content: String::new(),
             specified_style: Style::new(),
-            computed_style: Style::default(),
-            attr: NodeAttr::default(),
+            computed_style: style::ComputedStyle::default(),
+            select_attr: None,
             parent: Weak::new(),
             children: Vec::new(),
         }
@@ -162,6 +156,11 @@ impl<'a> RenderTree<'a> {
 
         if let Some(id) = dom_element.get_attribute("id") {
             render_node.set_id(id.clone());
+        }
+
+        // Extract the select attribute for groups
+        if let Some(select) = dom_element.get_attribute("select") {
+            render_node.select_attr = Some(select.clone());
         }
 
         if !dom_element.text.trim().is_empty() {
@@ -299,6 +298,51 @@ impl<'a> RenderTree<'a> {
         Ok(())
     }
 
+    /// Set the object in the computed style for Item nodes
+    fn set_computed_object(&self, node_ref: &mut RenderNode) -> Result<()> {
+        // Clone the text_content to avoid borrowing issues
+        let name = node_ref.text_content.clone();
+        
+        // Set the object in the computed style
+        // First check if it's a direct object
+        if let Some(object) = self.package.objects.get(&name) {
+            node_ref.computed_style.object = Some(object.clone());
+        } else {
+            // It's a group, so we need to handle the select attribute
+            if let Some(select_attr) = &node_ref.select_attr {
+                // Find the group in the package
+                if let Some(group) = self.package.groups.iter().find(|g| g.name == name) {
+                    // Select an object from the group based on the select attribute
+                    match select_attr.as_str() {
+                        "first" => {
+                            // Select the first object in the group
+                            if let Some((_, object)) = group.objects.iter().next() {
+                                node_ref.computed_style.object = Some(object.clone());
+                            }
+                        }
+                        "random" => {
+                            // Select a random object from the group
+                            use rand::rng;
+                            let mut rng = rng();
+                            let object_vec: Vec<&Object> = group.objects.values().collect();
+                            if let Some(object) = object_vec.choose(&mut rng) {
+                                node_ref.computed_style.object = Some((*object).clone());
+                            }
+                        }
+                        _ => {
+                            // Try to select by specific name
+                            if let Some(object) = group.objects.get(select_attr) {
+                                node_ref.computed_style.object = Some(object.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
+
     fn calculate_size_by_child_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> Result<()> {
         for child in &node.borrow().children {
             self.calculate_size_by_child_recursive(child)?;
@@ -308,14 +352,18 @@ impl<'a> RenderTree<'a> {
 
         match &node_ref.node_type {
             RenderNodeType::Item => {
-                let name = &node_ref.text_content;
+                // Clone the text_content to avoid borrowing issues
+                let name = node_ref.text_content.clone();
                 node_ref.computed_style.size =
-                    SpaceSize::from_dim3_length(self.package.get_space_size(name).ok_or(
+                    SpaceSize::from_dim3_length(self.package.get_space_size(&name).ok_or(
                         RsmlError::PackageConfigError(format!(
                             "object/group not found. name={}",
                             name
                         )),
                     )?);
+                
+                // Set the object in the computed style
+                self.set_computed_object(&mut node_ref)?;
             }
             RenderNodeType::Space => match node_ref.specified_style.display {
                 style::Display::Flex => {
@@ -697,6 +745,11 @@ fn print_computed_style_info(node_ref: &RenderNode, depth: usize) {
 
     // 打印位置信息
     println!("{}Computed Position={}", indent, node_ref.computed_style.position);
+    
+    // 打印对象信息（如果存在）
+    if let Some(object) = &node_ref.computed_style.object {
+        println!("{}Object={:?}", indent, object);
+    }
 }
 
 #[cfg(test)]
@@ -747,16 +800,5 @@ mod tests {
         assert_eq!(node.node_type, RenderNodeType::Space);
     }
 
-    #[test]
-    fn test_node_attr_content_size() {
-        let mut attr = NodeAttr::default();
-
-        let content_size = Dim3::new(
-            Length::from_cm(10),
-            Length::from_cm(10),
-            Length::from_cm(10),
-        );
-        attr.absolute_size = content_size;
-        assert_eq!(attr.absolute_size, content_size);
-    }
+    
 }

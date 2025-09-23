@@ -1,5 +1,6 @@
 use crate::base::{Length, Percentage};
 use crate::dim3::Dim3;
+use crate::package::Object;
 use anyhow::{Result, anyhow};
 use rand::Rng;
 use std::fmt;
@@ -514,15 +515,17 @@ impl Style {
 /// 计算后的样式，包含绝对的尺寸和位置
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComputedStyle {
-    pub size: Dim3<Length>,
-    pub pos: Dim3<Length>,
+    pub size: SpaceSize,
+    pub position: SpacePosition,
+    pub object: Option<Object>,
 }
 
 impl Default for ComputedStyle {
     fn default() -> Self {
         Self {
-            size: Dim3::default(),
-            pos: Dim3::default(),
+            size: SpaceSize::default(),
+            position: SpacePosition::default(),
+            object: None,
         }
     }
 }

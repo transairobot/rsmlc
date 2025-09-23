@@ -43,7 +43,7 @@ impl Default for GeomType {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Object {
     #[serde(rename = "geom-type")]
     #[serde(default)]
@@ -77,7 +77,7 @@ impl<'de> Deserialize<'de> for Object {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Group {
     pub name: String,
     pub objects: std::collections::HashMap<String, Object>,
