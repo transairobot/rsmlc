@@ -132,7 +132,7 @@ impl<'a> RenderTree<'a> {
     }
 
     /// Find the body node in the render tree
-    fn find_body_node(&self, node: &Rc<RefCell<RenderNode>>) -> Option<Rc<RefCell<RenderNode>>> {
+    pub fn find_body_node(&self, node: &Rc<RefCell<RenderNode>>) -> Option<Rc<RefCell<RenderNode>>> {
         let node_ref = node.borrow();
 
         // Check if current node is body

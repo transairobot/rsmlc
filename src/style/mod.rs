@@ -367,6 +367,15 @@ impl SpacePosition {
         self.y.add(&other.y);
         self.z.add(&other.z);
     }
+    
+    pub fn get_length(&self) -> Option<Dim3<Length>> {
+        match (&self.x, &self.y, &self.z) {
+            (PositionValue::Length(x), PositionValue::Length(y), PositionValue::Length(z)) => {
+                Some(Dim3::new(*x, *y, *z))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// 为 SpacePosition 实现 Display trait

@@ -6,12 +6,14 @@ mod package;
 mod dim3;
 mod error;
 mod api;
+mod target;
 
 use anyhow::Result;
 use xml_parser::{parse_xml_file, Element};
 use render_tree::RenderTree;
 use package::Package;
 use error::RsmlError;
+use target::MjcfGenerator;
 
 fn main() -> Result<()> {
     // 解析package.toml文件
@@ -38,6 +40,21 @@ fn main() -> Result<()> {
     // 计算尺寸和布局
     println!("\n正在计算尺寸和布局...");
     render_tree.calculate()?;
+    
+    // 生成MJCF文件
+    println!("\n正在生成MJCF文件...");
+    let mjcf_content = MjcfGenerator::generate(&render_tree);
+    
+    // 将MJCF序列化为XML格式
+    let mjcf_xml = quick_xml::se::to_string(&mjcf_content)?;
+    
+    // 将MJCF内容写入文件
+    std::fs::write("output.xml", &mjcf_xml)?;
+    println!("MJCF文件已生成: output.xml");
+    
+    // 打印MJCF内容预览
+    println!("\nMJCF内容预览:");
+    println!("{}", mjcf_xml);
     
     Ok(())
 }
