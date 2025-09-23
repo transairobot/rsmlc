@@ -1,0 +1,51 @@
+<rsml>
+  <head>
+    <style> 
+    <![CDATA[
+      [[styles]] 
+      selector = "leg1" 
+      pos = "min min min" 
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+
+      [[styles]] 
+      selector = "leg2" 
+      pos = "min max min" 
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+
+      [[styles]] 
+      selector = "leg3" 
+      pos = "max max min" 
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+
+      [[styles]] 
+      selector = "leg4" 
+      pos = "max min min" <!-- 顺序是x y z. 这里是x取最大值, yz取最小值 -->
+      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+      ]]>
+    </style>
+  </head>
+  <body>
+    <!-- flex默认-z，就是按照顺序从上到下排列-->
+    <space id="main_room" style="size:10m 10m 10m;display:flex;">
+      <space id="table_area" style="display:flex;justify-content:flex-end;">
+        <space id="on_table" style="display:flex;flex-direction: x">
+          <group select="random"> bottles </group>  <!-- 从bottles group中随机选择一个bottle,
+          bottles定义在rsml_config.toml中-->
+          <group select="first"> bottles </group>   <!-- 从bottle group中选择第一个bottle-->
+        </space>
+        <object> table_plane </object>
+        <space id="table-legs" style="size:100% 100% auto;flex-direction:y"> <!-- -->
+          <space id="left-legs" style="flex-direction:x">
+            <object id="leg1"> table_leg </object> <!--table_leg定义在rsml_config.toml中-->
+            <object id="leg2"> table_leg </object>
+          </space>
+          <space id="right-legs" style="flex-direction:x">
+            <object id="leg3"> table_leg </object>
+            <object id="leg4"> table_leg </object>
+          </space>
+        </space>
+      </space>
+      <object> floor </object>
+    </space>
+  </body>
+</rsml>

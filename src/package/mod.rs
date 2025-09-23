@@ -236,6 +236,7 @@ impl Package {
                     Length::from_m(asset.z_len),
                 );
 
+                println!("asset={:?}", asset);
                 // Check if the asset is within the size limit
                 if asset_size.x <= size_limit.x && asset_size.y <= size_limit.y && asset_size.z <= size_limit.z {
                     println!("Found matching asset: {} ({:?})", asset.name, asset_size);

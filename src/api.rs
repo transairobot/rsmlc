@@ -1,5 +1,6 @@
 use crate::error::{Result, RsmlError};
 use serde::Deserialize;
+use serde_json;
 use std::fs;
 use std::io::copy;
 use std::path::Path;
@@ -44,50 +45,53 @@ pub struct ApiResponse<T> {
     pub message: String,
 }
 
-/// Fetches dependency information from the remote asset server.
-pub fn fetch_dependency(name: &str) -> Result<Robot3DAssetCategoryRespItem> {
+/// Generic API call function for robot-3d-assets endpoints
+fn api_call<T: for<'de> Deserialize<'de>>(path: &str, method: &str) -> Result<T> {
     let base_url = "https://transairobot.com";
-    let url = format!("{}/api/robot-3d-assets/categories/name", base_url);
-
+    let url = format!("{}/api/{}", base_url, path);
+    
     let client = reqwest::blocking::Client::new();
-    let response = client
-        .get(&url)
-        .query(&[("name", name)])
-        .send()
-        .map_err(|e| RsmlError::NetworkError(e.to_string()))?;
+    let response = match method.to_lowercase().as_str() {
+        "get" => client.get(&url).send(),
+        "post" => client.post(&url).send(),
+        _ => return Err(RsmlError::ParseError {
+            field: "HTTP Method".to_string(),
+            message: format!("Unsupported method: {}", method),
+        }),
+    }
+    .map_err(|e| RsmlError::NetworkError(e.to_string()))?;
 
     if response.status().is_success() {
-        let api_response: ApiResponse<Robot3DAssetCategoryRespItem> =
-            response.json().map_err(|e| RsmlError::ParseError {
-                field: "API Response".to_string(),
-                message: e.to_string(),
-            })?;
+        let text = response.text().map_err(|e| RsmlError::NetworkError(e.to_string()))?;
         
-        // Check if the API returned a success code (assuming 0 or 200 means success)
+        let api_response: ApiResponse<T> = serde_json::from_str(&text).map_err(|e| RsmlError::ParseError {
+            field: "API Response".to_string(),
+            message: e.to_string(),
+        })?;
+        
         if api_response.code == 0 || api_response.code == 200 {
-            // Check if data is present
-            match api_response.data {
-                Some(data) => Ok(data),
-                None => Err(RsmlError::ApiError {
-                    status: api_response.code as u16,
-                    message: "API returned success code but no data".to_string(),
-                }),
-            }
+            api_response.data.ok_or_else(|| RsmlError::ApiError {
+                status: api_response.code,
+                message: "API returned success code but no data".to_string(),
+            })
         } else {
-            // Handle API-level errors (like authentication failures)
             Err(RsmlError::ApiError {
-                status: api_response.code as u16,
+                status: api_response.code,
                 message: api_response.message,
             })
         }
     } else {
         Err(RsmlError::ApiError {
-            status: response.status().as_u16(),
-            message: response
-                .text()
-                .unwrap_or_else(|_| "Unknown error".to_string()),
+            status: response.status().as_u16() as i32,
+            message: response.text().unwrap_or_else(|_| "Unknown error".to_string()),
         })
     }
+}
+
+/// Fetches dependency information from the remote asset server.
+pub fn fetch_dependency(name: &str) -> Result<Robot3DAssetCategoryRespItem> {
+    let path = format!("robot-3d-assets/categories/name?name={}", name);
+    api_call(&path, "get")
 }
 
 /// Fetches a paginated list of 3D assets within a specific category.
@@ -96,48 +100,8 @@ pub fn fetch_assets_in_category(
     page: u32,
     limit: u32,
 ) -> Result<PaginationListResp<Robot3DAsset>> {
-    let base_url = "https://transairobot.com";
-    let url = format!("{}/api/robot-3d-assets/{}/assets", base_url, category_id);
-
-    let client = reqwest::blocking::Client::new();
-    let response = client
-        .get(&url)
-        .query(&[("page", page), ("limit", limit)])
-        .send()
-        .map_err(|e| RsmlError::NetworkError(e.to_string()))?;
-
-    if response.status().is_success() {
-        let api_response: ApiResponse<PaginationListResp<Robot3DAsset>> =
-            response.json().map_err(|e| RsmlError::ParseError {
-                field: "API Response".to_string(),
-                message: e.to_string(),
-            })?;
-        
-        // Check if the API returned a success code (assuming 0 or 200 means success)
-        if api_response.code == 0 || api_response.code == 200 {
-            // Check if data is present
-            match api_response.data {
-                Some(data) => Ok(data),
-                None => Err(RsmlError::ApiError {
-                    status: api_response.code as u16,
-                    message: "API returned success code but no data".to_string(),
-                }),
-            }
-        } else {
-            // Handle API-level errors (like authentication failures)
-            Err(RsmlError::ApiError {
-                status: api_response.code as u16,
-                message: api_response.message,
-            })
-        }
-    } else {
-        Err(RsmlError::ApiError {
-            status: response.status().as_u16(),
-            message: response
-                .text()
-                .unwrap_or_else(|_| "Unknown error".to_string()),
-        })
-    }
+    let path = format!("robot-3d-assets/assets?category_id={}&page={}&limit={}", category_id, page, limit);
+    api_call(&path, "get")
 }
 
 /// Downloads a file from a given URL and saves it to a specified path.
@@ -155,7 +119,7 @@ pub fn download_file(url: &str, path: &Path) -> Result<()> {
         Ok(())
     } else {
         Err(RsmlError::ApiError {
-            status: response.status().as_u16(),
+            status: response.status().as_u16() as i32,
             message: format!("Failed to download file from {}", url),
         })
     }

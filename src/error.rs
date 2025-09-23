@@ -36,7 +36,7 @@ pub enum RsmlError {
     NetworkError(String),
 
     #[error("API error: status={status}, message={message}")]
-    ApiError { status: u16, message: String },
+    ApiError { status: i32, message: String },
 
     #[error("Cube display must explicit set size: length(mm/cm) or percentage(%)")]
     CubeSizeError,

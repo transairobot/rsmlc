@@ -1,0 +1,35 @@
+[package]
+name="tiny_example"
+description="a exampe for rsml"
+
+[objects]
+table_plane = { geom-type = "box", size = "1m 1m 10cm" }
+table_leg = { geom-type = "box", size = "10cm 10cm 50cm" }
+floor = { geom-type = "box", size = "10m 10m 1cm" }
+
+[[groups]]
+name="bottles" # 默认查找路径时src/assets
+bottle0={path="bottles/base0", size="0.54dm 1.90dm 0.54dm"}
+bottle1={path="bottles/base1", size="0.57dm 1.90dm 0.57dm"}
+bottle2={path="bottles/base2", size="0.45dm 1.57dm 0.45dm"}
+bottle3={path="bottles/base3", size="0.53dm 1.90dm 0.53dm"}
+bottle4={path="bottles/base4", size="0.49dm 1.80dm 0.48dm"}
+bottle5={path="bottles/base5", size="0.60dm 1.90dm 0.59dm"}
+bottle6={path="bottles/base6", size="0.64dm 1.90dm 0.63dm"}
+bottle7={path="bottles/base7", size="0.57dm 1.90dm 0.58dm"}
+bottle8={path="bottles/base8", size="0.66dm 1.83dm 0.66dm"}
+bottle9={path="bottles/base9", size="0.50dm 1.54dm 0.49dm"}
+bottle10={path="bottles/base10", size="0.55dm 1.90dm 0.55dm"}
+bottle11={path="bottles/base11", size="0.47dm 1.65dm 0.46dm"}
+bottle12={path="bottles/base12", size="0.60dm 1.90dm 0.60dm"}
+bottle13={path="bottles/base13", size="0.49dm 1.85dm 0.48dm"}
+bottle14={path="bottles/base14", size="0.64dm 1.90dm 0.64dm"}
+bottle15={path="bottles/base15", size="0.60dm 1.90dm 0.60dm"}
+bottle16={path="bottles/base16", size="0.51dm 0.51dm 1.90dm"}
+bottle17={path="bottles/base17", size="0.58dm 1.89dm 0.58dm"}
+bottle18={path="bottles/base18", size="0.80dm 1.90dm 0.77dm"}
+bottle19={path="bottles/base19", size="0.70dm 1.55dm 0.90dm"}
+bottle20={path="bottles/base20", size="0.57dm 1.90dm 0.71dm"}
+bottle21={path="bottles/base21", size="0.96dm 1.90dm 0.96dm"}
+bottle22={path="bottles/base22", size="0.62dm 1.90dm 0.63dm"}
+box_bottle={geom-type="box", size= "5cm 5cm 10cm"}
