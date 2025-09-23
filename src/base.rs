@@ -98,6 +98,11 @@ impl Length {
         Length(cm * 10)
     }
 
+    /// Create a new Length from decimeters
+    pub const fn from_dm(dm: u32) -> Self {
+        Length(dm * 100)
+    }
+
     /// Create a new Length from meters
     pub const fn from_m(m: f64) -> Self {
         Length((m * 1000.0) as u32)
@@ -113,6 +118,11 @@ impl Length {
         self.0 / 10
     }
 
+    /// Get the length in decimeters (truncated)
+    pub const fn dm(&self) -> u32 {
+        self.0 / 100
+    }
+
     /// Get the length in meters (truncated)
     pub const fn m(&self) -> u32 {
         self.0 / 1000
@@ -123,6 +133,8 @@ impl fmt::Display for Length {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.0 % 1000 == 0 {
             write!(f, "{}m", self.0 / 1000)
+        } else if self.0 % 100 == 0 {
+            write!(f, "{}dm", self.0 / 100)
         } else if self.0 % 10 == 0 {
             write!(f, "{}cm", self.0 / 10)
         } else {
@@ -168,6 +180,7 @@ impl FromStr for Length {
         let multiplier = match unit_str.as_str() {
             "mm" => 1.0,
             "cm" => 10.0,
+            "dm" => 100.0,
             "m" => 1000.0,
             "" => 1.0,
             _ => {
@@ -362,11 +375,30 @@ mod tests {
         let len: Length = "5cm".parse().unwrap();
         assert_eq!(len.mm(), 50);
 
+        let len: Length = "2dm".parse().unwrap();
+        assert_eq!(len.mm(), 200);
+
         let len: Length = "2m".parse().unwrap();
         assert_eq!(len.mm(), 2000);
 
         let len: Length = "10".parse().unwrap();
         assert_eq!(len.mm(), 10);
+    }
+
+    #[test]
+    fn test_length_from_dm() {
+        let len = Length::from_dm(5);
+        assert_eq!(len.mm(), 500);
+        assert_eq!(len.dm(), 5);
+    }
+
+    #[test]
+    fn test_length_display() {
+        let len = Length::from_dm(5);
+        assert_eq!(format!("{}", len), "5dm");
+
+        let len = Length::from_dm(5) + Length::from_cm(5);
+        assert_eq!(format!("{}", len), "55cm");
     }
 
     #[test]

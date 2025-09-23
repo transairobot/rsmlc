@@ -2,7 +2,7 @@ use crate::base::Length;
 use crate::dim3::Dim3;
 use crate::error::{Result, RsmlError};
 use crate::package::Package;
-use crate::style::{self, FlexDirection, SpaceSize, Style};
+use crate::style::{self, FlexDirection, SpacePosition, SpaceSize, Style};
 use crate::xml_parser::Element;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -120,14 +120,19 @@ impl<'a> RenderTree<'a> {
                     x: len.clone(),
                     y: len.clone(),
                     z: len.clone(),
-                }
+                };
+                body_node.borrow_mut().computed_style.position = SpacePosition::zero();
             }
+            // 计算size，完成之后还会有部分percentage的size没有计算，因为他们的parent的size是auto
             self.calculate_size_by_parent_recursive(&body_node)?;
+            // 根据child计算auto的size，完成之后不应该再存在auto
             self.calculate_size_by_child_recursive(&body_node)?;
+            // 再根据parent节点计算Percentage的size
             self.calculate_size_by_parent_recursive(&body_node)?;
+
+            // 计算pos
             self.calculate_pos_recursive(&body_node)?;
             self.print_computed();
-
         }
         Ok(())
     }
@@ -305,7 +310,12 @@ impl<'a> RenderTree<'a> {
             RenderNodeType::Item => {
                 let name = &node_ref.text_content;
                 node_ref.computed_style.size =
-                    SpaceSize::from_dim3_length(self.package.get_space_size(name)?);
+                    SpaceSize::from_dim3_length(self.package.get_space_size(name).ok_or(
+                        RsmlError::PackageConfigError(format!(
+                            "object/group not found. name={}",
+                            name
+                        )),
+                    )?);
             }
             RenderNodeType::Space => match node_ref.specified_style.display {
                 style::Display::Flex => {
@@ -419,19 +429,27 @@ impl<'a> RenderTree<'a> {
                     // 根据align-items计算Y和Z轴位置
                     if i < child_lengths.len() {
                         let child_size = child_lengths[i];
-                        
+
                         // 计算Y轴位置（第一个交叉轴）
                         pos.y = match align_items.cross1 {
                             style::AlignItem::FlexStart => Length::from_m(0.0),
-                            style::AlignItem::FlexEnd => Length::from_mm((node_length.y.mm() - child_size.y.mm()) as u32),
-                            style::AlignItem::Center => Length::from_mm(((node_length.y.mm() - child_size.y.mm()) / 2) as u32),
+                            style::AlignItem::FlexEnd => {
+                                Length::from_mm((node_length.y.mm() - child_size.y.mm()) as u32)
+                            }
+                            style::AlignItem::Center => Length::from_mm(
+                                ((node_length.y.mm() - child_size.y.mm()) / 2) as u32,
+                            ),
                         };
-                        
+
                         // 计算Z轴位置（第二个交叉轴）
                         pos.z = match align_items.cross2 {
                             style::AlignItem::FlexStart => Length::from_m(0.0),
-                            style::AlignItem::FlexEnd => Length::from_mm((node_length.z.mm() - child_size.z.mm()) as u32),
-                            style::AlignItem::Center => Length::from_mm(((node_length.z.mm() - child_size.z.mm()) / 2) as u32),
+                            style::AlignItem::FlexEnd => {
+                                Length::from_mm((node_length.z.mm() - child_size.z.mm()) as u32)
+                            }
+                            style::AlignItem::Center => Length::from_mm(
+                                ((node_length.z.mm() - child_size.z.mm()) / 2) as u32,
+                            ),
                         };
                     }
 
@@ -466,19 +484,27 @@ impl<'a> RenderTree<'a> {
                     // 根据align-items计算X和Z轴位置
                     if i < child_lengths.len() {
                         let child_size = child_lengths[i];
-                        
+
                         // 计算X轴位置（第一个交叉轴）
                         pos.x = match align_items.cross1 {
                             style::AlignItem::FlexStart => Length::from_m(0.0),
-                            style::AlignItem::FlexEnd => Length::from_mm((node_length.x.mm() - child_size.x.mm()) as u32),
-                            style::AlignItem::Center => Length::from_mm(((node_length.x.mm() - child_size.x.mm()) / 2) as u32),
+                            style::AlignItem::FlexEnd => {
+                                Length::from_mm((node_length.x.mm() - child_size.x.mm()) as u32)
+                            }
+                            style::AlignItem::Center => Length::from_mm(
+                                ((node_length.x.mm() - child_size.x.mm()) / 2) as u32,
+                            ),
                         };
-                        
+
                         // 计算Z轴位置（第二个交叉轴）
                         pos.z = match align_items.cross2 {
                             style::AlignItem::FlexStart => Length::from_m(0.0),
-                            style::AlignItem::FlexEnd => Length::from_mm((node_length.z.mm() - child_size.z.mm()) as u32),
-                            style::AlignItem::Center => Length::from_mm(((node_length.z.mm() - child_size.z.mm()) / 2) as u32),
+                            style::AlignItem::FlexEnd => {
+                                Length::from_mm((node_length.z.mm() - child_size.z.mm()) as u32)
+                            }
+                            style::AlignItem::Center => Length::from_mm(
+                                ((node_length.z.mm() - child_size.z.mm()) / 2) as u32,
+                            ),
                         };
                     }
 
@@ -513,19 +539,27 @@ impl<'a> RenderTree<'a> {
                     // 根据align-items计算X和Y轴位置
                     if i < child_lengths.len() {
                         let child_size = child_lengths[i];
-                        
+
                         // 计算X轴位置（第一个交叉轴）
                         pos.x = match align_items.cross1 {
                             style::AlignItem::FlexStart => Length::from_m(0.0),
-                            style::AlignItem::FlexEnd => Length::from_mm((node_length.x.mm() - child_size.x.mm()) as u32),
-                            style::AlignItem::Center => Length::from_mm(((node_length.x.mm() - child_size.x.mm()) / 2) as u32),
+                            style::AlignItem::FlexEnd => {
+                                Length::from_mm((node_length.x.mm() - child_size.x.mm()) as u32)
+                            }
+                            style::AlignItem::Center => Length::from_mm(
+                                ((node_length.x.mm() - child_size.x.mm()) / 2) as u32,
+                            ),
                         };
-                        
+
                         // 计算Y轴位置（第二个交叉轴）
                         pos.y = match align_items.cross2 {
                             style::AlignItem::FlexStart => Length::from_m(0.0),
-                            style::AlignItem::FlexEnd => Length::from_mm((node_length.y.mm() - child_size.y.mm()) as u32),
-                            style::AlignItem::Center => Length::from_mm(((node_length.y.mm() - child_size.y.mm()) / 2) as u32),
+                            style::AlignItem::FlexEnd => {
+                                Length::from_mm((node_length.y.mm() - child_size.y.mm()) as u32)
+                            }
+                            style::AlignItem::Center => Length::from_mm(
+                                ((node_length.y.mm() - child_size.y.mm()) / 2) as u32,
+                            ),
                         };
                     }
 
@@ -533,17 +567,13 @@ impl<'a> RenderTree<'a> {
                 }
             }
         }
-
-        // 将计算出的位置存储到node_ref中
-        node_ref.attr.flex_child_space = child_positions
-            .iter()
-            .map(|pos| AbsoluteSpace { pos: *pos })
-            .collect();
-
+        let base_pos = node_ref.computed_style.position.clone();
         // 更新子元素的位置
         for (i, child) in node_ref.children.iter().enumerate() {
             if i < child_positions.len() {
-                child.borrow_mut().attr.absolute_pos = child_positions[i];
+                let mut pos = style::SpacePosition::from_dim3(child_positions[i]);
+                pos.add(&base_pos);
+                child.borrow_mut().computed_style.position = pos;
             }
         }
 
@@ -666,7 +696,7 @@ fn print_computed_style_info(node_ref: &RenderNode, depth: usize) {
     println!("{}Computed Size={}", indent, node_ref.computed_style.size);
 
     // 打印位置信息
-    println!("{}Computed Position={}", indent, node_ref.attr.absolute_pos);
+    println!("{}Computed Position={}", indent, node_ref.computed_style.position);
 }
 
 #[cfg(test)]

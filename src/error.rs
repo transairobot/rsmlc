@@ -40,6 +40,9 @@ pub enum RsmlError {
 
     #[error("Cube display must explicit set size: length(mm/cm) or percentage(%)")]
     CubeSizeError,
+
+    #[error("package config error: {0}")]
+    PackageConfigError(String),
 }
 
 pub type Result<T> = anyhow::Result<T, RsmlError>;

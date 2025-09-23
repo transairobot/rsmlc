@@ -71,6 +71,17 @@ pub enum PositionValue {
     Auto,
 }
 
+impl PositionValue {
+    pub fn add(&mut self, other: &Self) {
+        if let Self::Length(self_length) = self {
+            match other {
+                Self::Length(other_length) => *self_length += *other_length,
+                Self::Auto => {}
+            }
+        }
+    }
+}
+
 impl Default for PositionValue {
     fn default() -> Self {
         PositionValue::Auto
@@ -190,7 +201,7 @@ impl SpaceSize {
         self.y.assign_priority(other.y);
         self.z.assign_priority(other.z);
     }
-    
+
     /// 判断SpaceSize的任意一个维度是否为Auto
     pub fn has_auto(&self) -> bool {
         self.x == SizeValue::Auto || self.y == SizeValue::Auto || self.z == SizeValue::Auto
@@ -218,7 +229,7 @@ impl SpaceSize {
         };
         return Self { x: x, y: y, z: z };
     }
-    
+
     /// 将SpaceSize转换为Dim3<Length>，如果所有维度都是Length类型
     pub fn get_length(&self) -> Option<Dim3<Length>> {
         match (&self.x, &self.y, &self.z) {
@@ -335,6 +346,28 @@ impl Default for SpacePosition {
     }
 }
 
+impl SpacePosition {
+    pub fn zero() -> Self {
+        Self {
+            x: PositionValue::Length(Length::from_mm(0)),
+            y: PositionValue::Length(Length::from_mm(0)),
+            z: PositionValue::Length(Length::from_mm(0)),
+        }
+    }
+    pub fn from_dim3(pos: Dim3<Length>) -> Self {
+        Self {
+            x: PositionValue::Length(pos.x),
+            y: PositionValue::Length(pos.y),
+            z: PositionValue::Length(pos.z),
+        }
+    }
+    pub fn add(&mut self, other: &Self) {
+        self.x.add(&other.x);
+        self.y.add(&other.y);
+        self.z.add(&other.z);
+    }
+}
+
 /// 为 SpacePosition 实现 Display trait
 impl fmt::Display for SpacePosition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -358,7 +391,7 @@ impl Default for Style {
     fn default() -> Self {
         Style {
             size: SpaceSize::default(),
-            display: Display::Flex,                    // default flex
+            display: Display::Flex,                     // default flex
             justify_content: JustifyContent::default(), // default
             align_items: AlignItems::default(),         // default
             flex_direction: FlexDirection::default(),   // default ReverseZ
@@ -540,14 +573,14 @@ mod tests {
         // 测试align-items属性的解析
         let style_str = "align-items:flex-start center";
         let style = Style::from_style_string(style_str).unwrap();
-        
+
         assert_eq!(style.align_items.cross1, AlignItem::FlexStart);
         assert_eq!(style.align_items.cross2, AlignItem::Center);
-        
+
         // 测试默认值
         let style_str = "display:flex";
         let style = Style::from_style_string(style_str).unwrap();
-        
+
         assert_eq!(style.align_items.cross1, AlignItem::FlexStart);
         assert_eq!(style.align_items.cross2, AlignItem::FlexStart);
     }
@@ -615,9 +648,18 @@ mod tests {
         assert_eq!(style.flex_direction, FlexDirection::X);
 
         // 验证position
-        assert_eq!(style.position_x(), &PositionValue::Length(Length::from_cm(10)));
-        assert_eq!(style.position_y(), &PositionValue::Length(Length::from_cm(20)));
-        assert_eq!(style.position_z(), &PositionValue::Length(Length::from_cm(30)));
+        assert_eq!(
+            style.position_x(),
+            &PositionValue::Length(Length::from_cm(10))
+        );
+        assert_eq!(
+            style.position_y(),
+            &PositionValue::Length(Length::from_cm(20))
+        );
+        assert_eq!(
+            style.position_z(),
+            &PositionValue::Length(Length::from_cm(30))
+        );
 
         // 验证flex-basis
         assert_eq!(style.flex_basis, FlexBasis::Percentage(Percentage::new(50)));
@@ -652,26 +694,50 @@ mod tests {
         let style = Style::from_style_string(style_str).unwrap();
 
         // 验证position值
-        assert_eq!(style.position_x(), &PositionValue::Length(Length::from_cm(10)));
-        assert_eq!(style.position_y(), &PositionValue::Length(Length::from_cm(20)));
+        assert_eq!(
+            style.position_x(),
+            &PositionValue::Length(Length::from_cm(10))
+        );
+        assert_eq!(
+            style.position_y(),
+            &PositionValue::Length(Length::from_cm(20))
+        );
         assert_eq!(style.position_z(), &PositionValue::Auto);
     }
 
     #[test]
     fn test_position_value_parsing() {
         // 测试PositionValue的解析
-        assert_eq!(PositionValue::from_str("auto").unwrap(), PositionValue::Auto);
-        assert_eq!(PositionValue::from_str("10cm").unwrap(), PositionValue::Length(Length::from_cm(10)));
-        assert_eq!(PositionValue::from_str("5m").unwrap(), PositionValue::Length(Length::from_m(5.0)));
-        assert_eq!(PositionValue::from_str("20mm").unwrap(), PositionValue::Length(Length::from_mm(20)));
+        assert_eq!(
+            PositionValue::from_str("auto").unwrap(),
+            PositionValue::Auto
+        );
+        assert_eq!(
+            PositionValue::from_str("10cm").unwrap(),
+            PositionValue::Length(Length::from_cm(10))
+        );
+        assert_eq!(
+            PositionValue::from_str("5m").unwrap(),
+            PositionValue::Length(Length::from_m(5.0))
+        );
+        assert_eq!(
+            PositionValue::from_str("20mm").unwrap(),
+            PositionValue::Length(Length::from_mm(20))
+        );
     }
 
     #[test]
     fn test_position_value_display() {
         // 测试PositionValue的显示
         assert_eq!(format!("{}", PositionValue::Auto), "auto");
-        assert_eq!(format!("{}", PositionValue::Length(Length::from_cm(10))), "10cm");
-        assert_eq!(format!("{}", PositionValue::Length(Length::from_m(5.0))), "5m");
+        assert_eq!(
+            format!("{}", PositionValue::Length(Length::from_cm(10))),
+            "1dm"
+        );
+        assert_eq!(
+            format!("{}", PositionValue::Length(Length::from_m(5.0))),
+            "5m"
+        );
     }
 
     #[test]
@@ -687,11 +753,11 @@ mod tests {
     fn test_space_position_display() {
         // 测试SpacePosition的显示
         let position = SpacePosition {
-            x: PositionValue::Length(Length::from_cm(10)),
+            x: PositionValue::Length(Length::from_mm(15)),
             y: PositionValue::Length(Length::from_m(5.0)),
             z: PositionValue::Auto,
         };
-        assert_eq!(format!("{}", position), "10cm 5m auto");
+        assert_eq!(format!("{}", position), "15mm 5m auto");
     }
 
     #[test]
@@ -704,11 +770,55 @@ mod tests {
 
     #[test]
     fn test_space_size_from_dim3_length() {
-        let dim3 = Dim3::new(Length::from_m(10.0), Length::from_cm(20), Length::from_mm(30));
+        let dim3 = Dim3::new(
+            Length::from_m(10.0),
+            Length::from_cm(20),
+            Length::from_mm(30),
+        );
         let space_size = SpaceSize::from_dim3_length(dim3);
 
         assert_eq!(space_size.x, SizeValue::Length(Length::from_m(10.0)));
         assert_eq!(space_size.y, SizeValue::Length(Length::from_cm(20)));
         assert_eq!(space_size.z, SizeValue::Length(Length::from_mm(30)));
+    }
+
+    #[test]
+    fn test_space_position_from_dim3() {
+        // 测试SpacePosition::from_dim3方法
+        let dim3 = Dim3::new(
+            Length::from_m(10.0),
+            Length::from_cm(20),
+            Length::from_mm(30),
+        );
+        let space_position = SpacePosition::from_dim3(dim3);
+
+        assert_eq!(
+            space_position.x,
+            PositionValue::Length(Length::from_m(10.0))
+        );
+        assert_eq!(space_position.y, PositionValue::Length(Length::from_cm(20)));
+        assert_eq!(space_position.z, PositionValue::Length(Length::from_mm(30)));
+    }
+
+    #[test]
+    fn test_space_position_add() {
+        // 测试SpacePosition::add方法
+        let mut position1 = SpacePosition {
+            x: PositionValue::Length(Length::from_cm(10)),
+            y: PositionValue::Length(Length::from_m(5.0)),
+            z: PositionValue::Auto,
+        };
+
+        let position2 = SpacePosition {
+            x: PositionValue::Length(Length::from_cm(5)),
+            y: PositionValue::Auto,
+            z: PositionValue::Length(Length::from_mm(100)),
+        };
+
+        position1.add(&position2);
+
+        assert_eq!(position1.x, PositionValue::Length(Length::from_cm(15)));
+        assert_eq!(position1.y, PositionValue::Length(Length::from_m(5.0))); // Should remain unchanged
+        assert_eq!(position1.z, PositionValue::Auto); // Auto + Length = Auto (current implementation)
     }
 }

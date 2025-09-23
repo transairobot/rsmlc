@@ -1,7 +1,8 @@
 use std::ops::{Add, Sub, Mul, Div};
 use std::fmt;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Dim3<T> {
     pub x: T,
     pub y: T,
