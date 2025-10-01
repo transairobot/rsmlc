@@ -529,6 +529,27 @@ pub struct ComputedStyle {
     pub object: Option<Object>,
 }
 
+impl ComputedStyle {
+    /// Calculate the center position based on the current position (left-bottom corner) and size
+    /// The center position is calculated as: position + size / 2
+    pub fn get_center_pos(&self) -> Option<SpacePosition> {
+        // Get the position as Length values
+        let pos = self.position.get_length()?;
+        
+        // Get the size as Length values
+        let size = self.size.get_length()?;
+        
+        // Calculate center: position + size / 2
+        let center = Dim3::new(
+            pos.x + size.x / 2,
+            pos.y + size.y / 2,
+            pos.z + size.z / 2,
+        );
+        
+        Some(SpacePosition::from_dim3(center))
+    }
+}
+
 impl Default for ComputedStyle {
     fn default() -> Self {
         Self {
@@ -832,5 +853,98 @@ mod tests {
         assert_eq!(position1.x, PositionValue::Length(Length::from_cm(15)));
         assert_eq!(position1.y, PositionValue::Length(Length::from_m(5.0))); // Should remain unchanged
         assert_eq!(position1.z, PositionValue::Auto); // Auto + Length = Auto (current implementation)
+    }
+    
+    #[test]
+    fn test_computed_style_get_center_pos() {
+        // 测试ComputedStyle的get_center_pos方法
+        let mut computed_style = ComputedStyle::default();
+        
+        // 设置位置（左下角）和尺寸
+        computed_style.position = SpacePosition {
+            x: PositionValue::Length(Length::from_cm(10)),  // x = 10cm
+            y: PositionValue::Length(Length::from_cm(20)),  // y = 20cm
+            z: PositionValue::Length(Length::from_cm(30)),  // z = 30cm
+        };
+        
+        computed_style.size = SpaceSize {
+            x: SizeValue::Length(Length::from_cm(20)),  // width = 20cm
+            y: SizeValue::Length(Length::from_cm(40)),  // height = 40cm
+            z: SizeValue::Length(Length::from_cm(60)),  // depth = 60cm
+        };
+        
+        // 计算中心点：位置 + 尺寸/2
+        // x = 10 + 20/2 = 20cm
+        // y = 20 + 40/2 = 40cm
+        // z = 30 + 60/2 = 60cm
+        let center_pos = computed_style.get_center_pos().unwrap();
+        
+        assert_eq!(center_pos.x, PositionValue::Length(Length::from_cm(20)));
+        assert_eq!(center_pos.y, PositionValue::Length(Length::from_cm(40)));
+        assert_eq!(center_pos.z, PositionValue::Length(Length::from_cm(60)));
+    }
+    
+    #[test]
+    fn test_computed_style_get_center_pos_with_zero_size() {
+        // 测试当尺寸为0时的中心点计算
+        let mut computed_style = ComputedStyle::default();
+        
+        // 设置位置和零尺寸
+        computed_style.position = SpacePosition {
+            x: PositionValue::Length(Length::from_cm(5)),  // x = 5cm
+            y: PositionValue::Length(Length::from_cm(10)), // y = 10cm
+            z: PositionValue::Length(Length::from_cm(15)), // z = 15cm
+        };
+        
+        computed_style.size = SpaceSize {
+            x: SizeValue::Length(Length::from_cm(0)),  // width = 0cm
+            y: SizeValue::Length(Length::from_cm(0)),  // height = 0cm
+            z: SizeValue::Length(Length::from_cm(0)),  // depth = 0cm
+        };
+        
+        // 当尺寸为0时，中心点应该等于左下角位置
+        let center_pos = computed_style.get_center_pos().unwrap();
+        
+        assert_eq!(center_pos.x, PositionValue::Length(Length::from_cm(5)));
+        assert_eq!(center_pos.y, PositionValue::Length(Length::from_cm(10)));
+        assert_eq!(center_pos.z, PositionValue::Length(Length::from_cm(15)));
+    }
+    
+    #[test]
+    fn test_computed_style_get_center_pos_none_when_auto() {
+        // 测试当position或size包含Auto时返回None
+        let mut computed_style = ComputedStyle::default();
+        
+        // 设置包含Auto的position
+        computed_style.position = SpacePosition {
+            x: PositionValue::Length(Length::from_cm(10)),
+            y: PositionValue::Length(Length::from_cm(20)),
+            z: PositionValue::Auto,  // z is auto
+        };
+        
+        computed_style.size = SpaceSize {
+            x: SizeValue::Length(Length::from_cm(20)),
+            y: SizeValue::Length(Length::from_cm(40)),
+            z: SizeValue::Length(Length::from_cm(60)),
+        };
+        
+        // Should return None because position.z is Auto
+        assert!(computed_style.get_center_pos().is_none());
+        
+        // Now test with size containing Auto
+        computed_style.position = SpacePosition {
+            x: PositionValue::Length(Length::from_cm(10)),
+            y: PositionValue::Length(Length::from_cm(20)),
+            z: PositionValue::Length(Length::from_cm(30)),
+        };
+        
+        computed_style.size = SpaceSize {
+            x: SizeValue::Length(Length::from_cm(20)),
+            y: SizeValue::Length(Length::from_cm(40)),
+            z: SizeValue::Auto,  // z size is auto
+        };
+        
+        // Should return None because size.z is Auto
+        assert!(computed_style.get_center_pos().is_none());
     }
 }

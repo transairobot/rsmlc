@@ -104,6 +104,11 @@ impl<'a> RenderTree<'a> {
         let root = Self::build_node_recursive(dom_element)?;
         Ok(Self { root, package })
     }
+    
+    /// Get a reference to the package used in this render tree
+    pub fn get_package(&self) -> &Package {
+        self.package
+    }
 
     pub fn calculate(&self) -> Result<()> {
         // Find the body node and start position calculation from there

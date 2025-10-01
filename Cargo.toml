@@ -9,6 +9,10 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.99"
+base64 = "0.22.1"
+gltf = "1.4.1"
+image = "0.25.5"
+stl_io = "0.8.5"
 quick-xml = { version = "0.38.3", features = ["serialize"] }
 rand = "0.9.2"
 reqwest = { version = "0.12.23", default-features = false, features = [

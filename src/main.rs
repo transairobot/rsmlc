@@ -17,7 +17,7 @@ use target::MjcfGenerator;
 
 fn main() -> Result<()> {
     // 解析package.toml文件
-    let package = Package::from_file("package.toml")?;
+    let package = Package::from_file("examples/tiny_example/package.toml")?;
     println!("Package configuration loaded successfully!");
     println!("Objects: {:?}", package.objects.keys().collect::<Vec<_>>());
     println!("Groups: {:?}", package.groups.iter().map(|g| &g.name).collect::<Vec<_>>());
@@ -43,7 +43,8 @@ fn main() -> Result<()> {
     
     // 生成MJCF文件
     println!("\n正在生成MJCF文件...");
-    MjcfGenerator::generate_to_directory(&render_tree, "./rsml_target")?;
+    let mut mjcf_generator = MjcfGenerator::new();
+    mjcf_generator.generate_to_directory(&render_tree, "./rsml_target")?;
     
     Ok(())
 }

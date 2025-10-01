@@ -51,6 +51,8 @@ pub struct Object {
     #[serde(deserialize_with = "deserialize_size")]
     pub size: Dim3<Length>,
     pub path: Option<String>,
+    #[serde(skip)]
+    pub identifier: String, // object: ${object_name}, object in group: ${group_name}/${object_name}
 }
 
 impl<'de> Deserialize<'de> for Object {
@@ -73,7 +75,31 @@ impl<'de> Deserialize<'de> for Object {
             geom_type: helper.geom_type,
             size: helper.size,
             path: helper.path,
+            identifier: "".to_string(),
         })
+    }
+}
+
+impl Object {
+    /// Get the absolute path of the object, considering the package directory
+    pub fn get_absolute_path(&self, package: &Package) -> Option<String> {
+        if let Some(ref path) = self.path {
+            // Check if the path is already absolute (starts with / or a drive letter on Windows)
+            let path_obj = std::path::Path::new(path);
+            if path_obj.is_absolute() {
+                // Return the absolute path as-is
+                Some(path.clone())
+            } else {
+                // Construct relative path: ${package_directory}/src/assets/${path}
+                let absolute_path = std::path::Path::new(&package.directory)
+                    .join("src")
+                    .join("assets")
+                    .join(path);
+                Some(absolute_path.to_string_lossy().to_string())
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -96,16 +122,43 @@ pub struct Package {
     pub groups: Vec<Group>,
     #[serde(default)]
     pub dependencies: std::collections::HashMap<String, String>,
+    #[serde(skip)]
+    pub directory: String,
 }
 
 impl Package {
     /// Load a package from a TOML file
     pub fn from_file(path: &str) -> Result<Self, crate::error::RsmlError> {
         let contents = std::fs::read_to_string(path).map_err(|e| crate::error::RsmlError::Io(e))?;
-        toml::from_str(&contents).map_err(|e| crate::error::RsmlError::ParseError {
-            field: "package".to_string(),
-            message: format!("Failed to parse package file '{}': {}", path, e),
-        })
+        let mut package: Package =
+            toml::from_str(&contents).map_err(|e| crate::error::RsmlError::ParseError {
+                field: "package".to_string(),
+                message: format!("Failed to parse package file '{}': {}", path, e),
+            })?;
+
+        // Set the directory based on the path of the package file
+        let path_obj = std::path::Path::new(path);
+        let directory = path_obj
+            .parent()
+            .map(|p| p.to_str().unwrap_or("."))
+            .unwrap_or(".")
+            .to_string();
+
+        package.directory = directory;
+        
+        // Calculate identifiers for objects in the package
+        for (name, object) in &mut package.objects {
+            object.identifier = name.clone();
+        }
+        
+        // Calculate identifiers for objects in groups
+        for group in &mut package.groups {
+            for (name, object) in &mut group.objects {
+                object.identifier = format!("{}/{}", group.name, name);
+            }
+        }
+        
+        Ok(package)
     }
 
     /// Get the space size for an object or group by name.
@@ -145,5 +198,224 @@ impl Package {
 
         // Name not found
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_package_directory_field() {
+        // Create a temporary directory
+        let temp_dir = tempdir().unwrap();
+        let package_path = temp_dir.path().join("package.toml");
+        let package_content = r#"
+[package]
+name = "test_package"
+description = "A test package"
+
+[objects]
+
+[dependencies]
+
+[[groups]]
+name = "test_group"
+[groups.objects.test_object]
+"geom-type" = "mesh"
+size = "1m 1m 1m"
+path = "test.glb"
+"#;
+        fs::write(&package_path, package_content).unwrap();
+
+        // Load the package
+        let package = Package::from_file(package_path.to_str().unwrap()).unwrap();
+
+        // Check that the directory field is set correctly
+        assert_eq!(package.directory, temp_dir.path().to_str().unwrap());
+    }
+
+    #[test]
+    fn test_get_absolute_path_relative_path() {
+        // Create a temporary directory
+        let temp_dir = tempdir().unwrap();
+        let package_path = temp_dir.path().join("package.toml");
+        let package_content = r#"
+[package]
+name = "test_package"
+description = "A test package"
+
+[objects.test_obj]
+"geom-type" = "mesh"
+size = "1m 1m 1m"
+path = "model.glb"
+
+[dependencies]
+
+[[groups]]
+name = "test_group"
+[groups.objects]
+"#;
+        fs::write(&package_path, package_content).unwrap();
+
+        // Load the package
+        let package = Package::from_file(package_path.to_str().unwrap()).unwrap();
+
+        // Get the test object
+        let object = &package.objects.get("test_obj").unwrap();
+
+        // Test getting the absolute path
+        let absolute_path = object.get_absolute_path(&package).unwrap();
+
+        // The path should be [package_dir]/src/assets/model.glb
+        let expected_path = temp_dir
+            .path()
+            .join("src")
+            .join("assets")
+            .join("model.glb")
+            .to_string_lossy()
+            .to_string();
+
+        assert_eq!(absolute_path, expected_path);
+    }
+
+    #[test]
+    fn test_get_absolute_path_absolute_path() {
+        // Create a temporary directory
+        let temp_dir = tempdir().unwrap();
+        let package_path = temp_dir.path().join("package.toml");
+
+        // Use an absolute path for testing
+        #[cfg(unix)]
+        let absolute_path = "/absolute/path/model.glb";
+        #[cfg(windows)]
+        let absolute_path = "C:\\absolute\\path\\model.glb";
+
+        let package_content = format!(
+            r#"
+[package]
+name = "test_package"
+description = "A test package"
+
+[objects.test_obj]
+"geom-type" = "mesh"
+size = "1m 1m 1m"
+path = "{}"
+
+[dependencies]
+
+[[groups]]
+name = "test_group"
+[groups.objects]
+"#,
+            absolute_path
+        );
+        fs::write(&package_path, package_content).unwrap();
+
+        // Load the package
+        let package = Package::from_file(package_path.to_str().unwrap()).unwrap();
+
+        // Get the test object
+        let object = &package.objects.get("test_obj").unwrap();
+
+        // Test getting the absolute path - should return the same absolute path
+        let result_path = object.get_absolute_path(&package).unwrap();
+
+        assert_eq!(result_path, absolute_path);
+    }
+
+    #[test]
+    fn test_get_absolute_path_none() {
+        // Create a temporary directory
+        let temp_dir = tempdir().unwrap();
+        let package_path = temp_dir.path().join("package.toml");
+        let package_content = r#"
+[package]
+name = "test_package"
+description = "A test package"
+
+[objects.test_obj]
+"geom-type" = "mesh"
+size = "1m 1m 1m"
+
+[dependencies]
+
+[[groups]]
+name = "test_group"
+[groups.objects]
+"#;
+        fs::write(&package_path, package_content).unwrap();
+
+        // Load the package
+        let package = Package::from_file(package_path.to_str().unwrap()).unwrap();
+
+        // Get the test object
+        let object = &package.objects.get("test_obj").unwrap();
+
+        // Test getting the absolute path when path is None
+        let result_path = object.get_absolute_path(&package);
+
+        assert!(result_path.is_none());
+    }
+    
+    #[test]
+    fn test_object_identifiers() {
+        // Create a temporary directory
+        let temp_dir = tempdir().unwrap();
+        let package_path = temp_dir.path().join("package.toml");
+        let package_content = r#"
+[package]
+name = "test_package"
+description = "A test package with identifiers test"
+
+[objects.obj1]
+"geom-type" = "mesh"
+size = "1m 1m 1m"
+path = "model1.glb"
+
+[objects.obj2]
+"geom-type" = "box"
+size = "2m 2m 2m"
+path = "model2.glb"
+
+[dependencies]
+
+[[groups]]
+name = "group1"
+[groups.objects.group_obj1]
+"geom-type" = "mesh"
+size = "0.5m 0.5m 0.5m"
+path = "group_model1.glb"
+
+[[groups]]
+name = "group2"
+[groups.objects.group_obj2]
+"geom-type" = "box"
+size = "1.5m 1.5m 1.5m"
+path = "group_model2.glb"
+[groups.objects.another_obj]
+"geom-type" = "mesh"
+size = "0.75m 0.75m 0.75m"
+path = "another_model.glb"
+"#;
+        fs::write(&package_path, package_content).unwrap();
+
+        // Load the package
+        let package = Package::from_file(package_path.to_str().unwrap()).unwrap();
+
+        // Test identifiers for objects in the main package
+        assert_eq!(package.objects.get("obj1").unwrap().identifier, "obj1");
+        assert_eq!(package.objects.get("obj2").unwrap().identifier, "obj2");
+
+        // Test identifiers for objects in groups
+        let group1 = package.groups.iter().find(|g| g.name == "group1").unwrap();
+        assert_eq!(group1.objects.get("group_obj1").unwrap().identifier, "group1/group_obj1");
+
+        let group2 = package.groups.iter().find(|g| g.name == "group2").unwrap();
+        assert_eq!(group2.objects.get("group_obj2").unwrap().identifier, "group2/group_obj2");
+        assert_eq!(group2.objects.get("another_obj").unwrap().identifier, "group2/another_obj");
     }
 }

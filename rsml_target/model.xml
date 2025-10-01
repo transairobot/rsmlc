@@ -1,14 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<mujoco model="rsml_model">
-    <worldbody>
-        <geom name="group_0" size="0.057 0.189 0.057" pos="0 0 1.08" type="mesh" />
-        <geom name="group_1" size="0.051 0.051 0.19" pos="0.096 0 1.08" type="mesh" />
-        <geom name="object_2" size="1 1 0.1" pos="0 0 0.98" type="box" />
-        <geom name="leg1" size="0.1 0.1 0.5" pos="0 0 0.79" type="box" />
-        <geom name="leg2" size="0.1 0.1 0.5" pos="0.1 0 0.79" type="box" />
-        <geom name="leg3" size="0.1 0.1 0.5" pos="0 0.1 0.79" type="box" />
-        <geom name="leg4" size="0.1 0.1 0.5" pos="0.1 0.1 0.79" type="box" />
-        <geom name="object_7" size="10 10 0.01" pos="0 0 0" type="box" />
-        <light name="default_light" pos="0 0 2" mode="trackcom" />
-    </worldbody>
-</mujoco>
+<?xml version="1.0" encoding="utf-8"?><mujoco model="rsml_model"><asset><texture name="tex_base21" type="2d" file="assets/bottles/bottle21/texture_1.png"/><texture name="tex_base12" type="2d" file="assets/bottles/bottle12/texture_1.png"/><material name="mat_base21" texture="tex_base21" texrepeat="1 1"/><material name="mat_base12" texture="tex_base12" texrepeat="1 1"/><mesh name="mesh_base21" file="assets/bottles/bottle21/base21.stl"/><mesh name="mesh_base12" file="assets/bottles/bottle12/base12.stl"/></asset><worldbody><geom name="group_0" size="0.096 0.19 0.096" pos="0.048 0.095 1.175" type="mesh" mesh="mesh_base21" material="mat_base21"/><geom name="group_1" size="0.06 0.19 0.06" pos="0.144 0.095 1.175" type="mesh" mesh="mesh_base12" material="mat_base12"/><geom name="object_2" size="1 1 0.1" pos="0.5 0.5 1.03" type="box"/><geom name="leg1" size="0.1 0.1 0.5" pos="0.05 0.05 1.04" type="box"/><geom name="leg2" size="0.1 0.1 0.5" pos="0.15 0.05 1.04" type="box"/><geom name="leg3" size="0.1 0.1 0.5" pos="0.05 0.15 1.04" type="box"/><geom name="leg4" size="0.1 0.1 0.5" pos="0.15 0.15 1.04" type="box"/><geom name="object_7" size="10 10 0.01" pos="5 5 0.005" type="box"/><light name="default_light" pos="0 0 2" mode="trackcom"/></worldbody></mujoco>
