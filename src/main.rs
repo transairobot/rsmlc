@@ -43,18 +43,7 @@ fn main() -> Result<()> {
     
     // 生成MJCF文件
     println!("\n正在生成MJCF文件...");
-    let mjcf_content = MjcfGenerator::generate(&render_tree);
-    
-    // 将MJCF序列化为XML格式
-    let mjcf_xml = quick_xml::se::to_string(&mjcf_content)?;
-    
-    // 将MJCF内容写入文件
-    std::fs::write("output.xml", &mjcf_xml)?;
-    println!("MJCF文件已生成: output.xml");
-    
-    // 打印MJCF内容预览
-    println!("\nMJCF内容预览:");
-    println!("{}", mjcf_xml);
+    MjcfGenerator::generate_to_directory(&render_tree, "./rsml_target")?;
     
     Ok(())
 }

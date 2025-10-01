@@ -3,13 +3,19 @@ use crate::dim3::Dim3;
 use crate::package::GeomType as PackageGeomType;
 use crate::render_tree::{RenderNode, RenderNodeType, RenderTree};
 use std::cell::RefCell;
+use std::fs;
+use std::io::Write;
+use std::path::Path;
 use std::rc::Rc;
+use crate::error::Result;
 
 pub struct MjcfGenerator;
 
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "mujoco")]
 pub struct Mujoco {
     #[serde(rename = "@model")] // XML 属性
     pub model: String,
@@ -29,7 +35,9 @@ pub struct WorldBody {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum GeomType {
+    #[serde(rename = "box")]
     Box, // 长宽高
+    #[serde(rename = "mesh")]
     Mesh,
 }
 
@@ -92,6 +100,37 @@ impl MjcfGenerator {
                 lights,
             },
         }
+    }
+
+    /// Generate MuJoCo XML and save it to the specified directory
+    pub fn generate_to_directory(render_tree: &RenderTree, directory: &str) -> Result<()> {
+        // Generate the Mujoco struct
+        let mujoco = Self::generate(render_tree);
+
+        // Convert Mujoco struct to XML string
+        let mut buf = Vec::new();
+        let mut writer = quick_xml::Writer::new(&mut buf);
+        
+        // Write the XML declaration
+        writer.write_event(quick_xml::events::Event::Decl(
+            quick_xml::events::BytesDecl::new("1.0", Some("utf-8"), None)
+        ))?;
+        
+        // Serialize the struct to XML
+        let content = quick_xml::se::to_string(&mujoco)?;
+                buf.extend_from_slice(content.as_bytes());
+
+        let xml_string = String::from_utf8(buf)?;
+
+        // Ensure the directory exists
+        fs::create_dir_all(directory)?;
+
+        // Write the XML to a file in the specified directory
+        let file_path = Path::new(directory).join("model.xml");
+        let mut file = File::create(file_path)?;
+        file.write_all(xml_string.as_bytes())?;
+
+        Ok(())
     }
     
     fn collect_item_geoms(node: &Rc<RefCell<RenderNode>>, geoms: &mut Vec<Geom>) {
@@ -201,6 +240,48 @@ mod tests {
         
         // 应该没有geom，因为根节点是Space类型
         assert_eq!(geoms.len(), 0);
+    }
+
+    #[test]
+    fn test_generate_to_directory() {
+        use std::fs;
+        use tempfile::tempdir; // You might need to add tempfile as dev dependency
+        use crate::xml_parser::Element as DomElement;
+        use crate::package::Package;
+
+        // Create a minimal package for testing
+        let test_package = Package {
+            package: crate::package::PackageInfo {
+                name: "test_package".to_string(),
+                description: "Test package".to_string(),
+            },
+            objects: std::collections::HashMap::new(),
+            groups: Vec::new(),
+            dependencies: std::collections::HashMap::new(),
+        };
+
+        // Create a simple DOM element
+        let dom_element = DomElement::new("space".to_string());
+        
+        // Create a render tree from the DOM element and package
+        let render_tree = RenderTree::new(&dom_element, &test_package).unwrap();
+
+        // Create a temporary directory for testing
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path().to_str().unwrap();
+
+        // Test the generate_to_directory function
+        let result = MjcfGenerator::generate_to_directory(&render_tree, temp_path);
+        assert!(result.is_ok());
+
+        // Check if the file was created
+        let xml_path = Path::new(temp_path).join("model.xml");
+        assert!(xml_path.exists());
+
+        // Read and check if the file contains XML content
+        let content = fs::read_to_string(xml_path).unwrap();
+        println!("Generated XML content: {}", content); // Debug output
+        assert!(content.contains("rsml_model"));
     }
 }
 

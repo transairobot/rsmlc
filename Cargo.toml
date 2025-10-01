@@ -23,18 +23,7 @@ toml = "0.9.5"
 [dev-dependencies]
 serde_json = "1.0"
 serde_test = "1.0"
-
-[[example]]
-name = "length_demo"
-path = "examples/length_demo.rs"
-
-[[example]]
-name = "geom_demo"
-path = "examples/geom_demo.rs"
-
-[[example]]
-name = "package_example"
-path = "examples/package_example.rs"
+tempfile = "3.14.0"
 
 [[bin]]
 name = "rsmlc"

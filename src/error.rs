@@ -8,6 +8,9 @@ pub enum RsmlError {
     #[error("XML attribute error: {0}")]
     XmlAttr(#[from] quick_xml::events::attributes::AttrError),
 
+    #[error("XML serialization error: {0}")]
+    XmlSerialize(#[from] quick_xml::se::SeError),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -43,6 +46,9 @@ pub enum RsmlError {
 
     #[error("package config error: {0}")]
     PackageConfigError(String),
+
+    #[error("UTF-8 conversion error: {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 pub type Result<T> = anyhow::Result<T, RsmlError>;
