@@ -103,8 +103,8 @@ pub struct Geom {
     #[serde(rename = "@name")]
     pub name: String,
 
-    #[serde(rename = "@size")]
-    pub size: String, // 例如 "1 1 .05"
+    #[serde(rename = "@size", skip_serializing_if = "Option::is_none")]
+    pub size: Option<String>, // 例如 "1 1 .05"
 
     #[serde(rename = "@pos")]
     pub pos: String, // 例如 "1 1 .05"
@@ -313,15 +313,19 @@ impl MjcfGenerator {
                     "0 0 0".to_string()
                 };
 
-                // 获取尺寸信息
-                let size = format!(
-                    "{} {} {}",
-                    Self::length_to_meters(object.size.x),
-                    Self::length_to_meters(object.size.y),
-                    Self::length_to_meters(object.size.z)
-                );
-
                 let geom_type: GeomType = object.geom_type.clone().into();
+
+                let mut size = None;
+                if geom_type != GeomType::Mesh {
+                    // 获取尺寸信息
+                    size = Some(format!(
+                        "{} {} {}",
+                        Self::length_to_meters(object.size.x / 2),
+                        Self::length_to_meters(object.size.y / 2),
+                        Self::length_to_meters(object.size.z / 2)
+                    ));
+                }
+
                 println!("geom_type={:?}", geom_type);
                 println!("identifier={:?}", object.identifier);
                 println!("assets_map={:?}", self.assets_map);

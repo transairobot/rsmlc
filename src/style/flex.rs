@@ -131,7 +131,7 @@ pub enum JustifyContent {
 
 impl Default for JustifyContent {
     fn default() -> Self {
-        Self::FlexStart
+        Self::FlexEnd
     }
 }
 

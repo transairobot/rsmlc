@@ -1,7 +1,7 @@
 use crate::base::Length;
 use crate::dim3::Dim3;
 use crate::error::{Result, RsmlError};
-use crate::package::{Package, Object};
+use crate::package::{Object, Package};
 use crate::style::{self, FlexDirection, SpacePosition, SpaceSize, Style};
 use crate::xml_parser::Element;
 use rand::prelude::IndexedRandom;
@@ -15,10 +15,6 @@ pub enum RenderNodeType {
     Space, // 除了group和object的其他tag
     Item,  // Group and Object
 }
-
-
-
-
 
 /// 渲染节点结构体
 #[derive(Debug)]
@@ -104,7 +100,7 @@ impl<'a> RenderTree<'a> {
         let root = Self::build_node_recursive(dom_element)?;
         Ok(Self { root, package })
     }
-    
+
     /// Get a reference to the package used in this render tree
     pub fn get_package(&self) -> &Package {
         self.package
@@ -137,7 +133,10 @@ impl<'a> RenderTree<'a> {
     }
 
     /// Find the body node in the render tree
-    pub fn find_body_node(&self, node: &Rc<RefCell<RenderNode>>) -> Option<Rc<RefCell<RenderNode>>> {
+    pub fn find_body_node(
+        &self,
+        node: &Rc<RefCell<RenderNode>>,
+    ) -> Option<Rc<RefCell<RenderNode>>> {
         let node_ref = node.borrow();
 
         // Check if current node is body
@@ -307,7 +306,7 @@ impl<'a> RenderTree<'a> {
     fn set_computed_object(&self, node_ref: &mut RenderNode) -> Result<()> {
         // Clone the text_content to avoid borrowing issues
         let name = node_ref.text_content.clone();
-        
+
         // Set the object in the computed style
         // First check if it's a direct object
         if let Some(object) = self.package.objects.get(&name) {
@@ -344,7 +343,7 @@ impl<'a> RenderTree<'a> {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -366,7 +365,7 @@ impl<'a> RenderTree<'a> {
                             name
                         )),
                     )?);
-                
+
                 // Set the object in the computed style
                 self.set_computed_object(&mut node_ref)?;
             }
@@ -458,6 +457,7 @@ impl<'a> RenderTree<'a> {
                 // 主轴是X轴，交叉轴是Y和Z
                 let free_space = node_length.x.mm() as f64 - total_child_size.x.mm() as f64;
                 let mut positions = self.calculate_positions_on_axis(
+                    node_length.x.mm() as f64,
                     free_space,
                     &child_lengths
                         .iter()
@@ -513,6 +513,7 @@ impl<'a> RenderTree<'a> {
                 // 主轴是Y轴，交叉轴是X和Z
                 let free_space = node_length.y.mm() as f64 - total_child_size.y.mm() as f64;
                 let mut positions = self.calculate_positions_on_axis(
+                    node_length.y.mm() as f64,
                     free_space,
                     &child_lengths
                         .iter()
@@ -567,7 +568,11 @@ impl<'a> RenderTree<'a> {
             FlexDirection::Z | FlexDirection::ReverseZ => {
                 // 主轴是Z轴，交叉轴是X和Y
                 let free_space = node_length.z.mm() as f64 - total_child_size.z.mm() as f64;
+                if matches!(flex_direction, FlexDirection::Z) {
+                    child_lengths.reverse();
+                }
                 let mut positions = self.calculate_positions_on_axis(
+                    node_length.z.mm() as f64,
                     free_space,
                     &child_lengths
                         .iter()
@@ -577,7 +582,7 @@ impl<'a> RenderTree<'a> {
                 );
 
                 // 如果是ReverseZ，需要反转位置
-                if matches!(flex_direction, FlexDirection::ReverseZ) {
+                if matches!(flex_direction, FlexDirection::Z) {
                     positions.reverse();
                 }
 
@@ -636,6 +641,7 @@ impl<'a> RenderTree<'a> {
     /// 根据可用空间和子元素尺寸计算在主轴上的位置
     fn calculate_positions_on_axis(
         &self,
+        total_space: f64,
         free_space: f64,
         child_sizes: &[f64],
         justify_content: &style::JustifyContent,
@@ -645,36 +651,40 @@ impl<'a> RenderTree<'a> {
         match justify_content {
             style::JustifyContent::FlexStart => {
                 // 从起始位置开始排列
-                let mut pos = 0.0;
+                let mut pos = total_space;
                 for &size in child_sizes {
-                    positions.push(pos);
-                    pos += size;
+                    let child_pos = pos - size;
+                    positions.push(child_pos);
+                    pos = child_pos;
                 }
             }
             style::JustifyContent::FlexEnd => {
                 // 从结束位置开始排列
-                let mut pos = free_space;
+                let mut pos = total_space - free_space;
                 for &size in child_sizes {
-                    positions.push(pos);
-                    pos += size;
+                    let child_pos = pos - size;
+                    positions.push(child_pos);
+                    pos = child_pos;
                 }
             }
             style::JustifyContent::Center => {
                 // 居中排列
-                let mut pos = free_space / 2.0;
+                let mut pos = total_space - free_space / 2.0;
                 for &size in child_sizes {
-                    positions.push(pos);
-                    pos += size;
+                    let child_pos = pos - size;
+                    positions.push(child_pos);
+                    pos = child_pos;
                 }
             }
             style::JustifyContent::SpaceBetween => {
                 // 两端对齐，项目间的间隔都相等
                 if child_sizes.len() > 1 {
                     let spacing = free_space / (child_sizes.len() - 1) as f64;
-                    let mut pos = 0.0;
+                    let mut pos = total_space;
                     for &size in child_sizes {
-                        positions.push(pos);
-                        pos += size + spacing;
+                        let child_pos = pos - size;
+                        positions.push(child_pos);
+                        pos = child_pos - spacing;
                     }
                 } else {
                     // 只有一个元素时，居中显示
@@ -749,8 +759,11 @@ fn print_computed_style_info(node_ref: &RenderNode, depth: usize) {
     println!("{}Computed Size={}", indent, node_ref.computed_style.size);
 
     // 打印位置信息
-    println!("{}Computed Position={}", indent, node_ref.computed_style.position);
-    
+    println!(
+        "{}Computed Position={}",
+        indent, node_ref.computed_style.position
+    );
+
     // 打印对象信息（如果存在）
     if let Some(object) = &node_ref.computed_style.object {
         println!("{}Object={:?}", indent, object);
@@ -804,6 +817,4 @@ mod tests {
         assert_eq!(node.id, Some("main".to_string()));
         assert_eq!(node.node_type, RenderNodeType::Space);
     }
-
-    
 }
