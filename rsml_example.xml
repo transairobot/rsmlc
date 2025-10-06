@@ -2,20 +2,22 @@
   <head>
     <style> 
     <![CDATA[
-
+      # 格式是toml
       [[styles]] 
-      selector = "#table-legs" 
-      size = "100% 100% auto"
-      flex-direction = "y"
-      justify-content = "space-between"
+      selector = "#table-legs" # id选择器
+      size = "100% 100% auto" # 分别表示x,y,z的长度, 100%表示长度为父容器的对应轴的长度， 
+                              # auto表示长度根据子容器确定, 因为叶子节点的size必须是确定的, 所以auto是一定能被求解的。
+      flex-direction = "y"    # 表示flex的主轴为y轴，并且flex的方向是原点到z轴的正无穷方向(0,1,0)
+      justify-content = "space-between" # 和css的语义一致
 
       [[styles]]
       selector = "#left-legs, #right-legs" 
+      flex-direction="x" 
       size="100% auto auto"
-      flex-direction="x"
       justify-content="space-between"
+
       [[styles]]
-      selector = ".leg" 
+      selector = ".leg" # class选择器
       margin-x = "10cm"
       margin-y = "10cm"
       margin-x-reverse = "10cm"
