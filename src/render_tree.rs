@@ -111,12 +111,12 @@ impl<'a> RenderTree<'a> {
         if let Some(body_node) = self.find_body_node(&self.root) {
             {
                 let len = SizeValue::Length(Length::from_m(100.0));
-                body_node.borrow_mut().computed_style.size = SpaceSize {
+                *body_node.borrow_mut().computed_style.mut_content_size() = SpaceSize {
                     x: len.clone(),
                     y: len.clone(),
                     z: len.clone(),
                 };
-                body_node.borrow_mut().computed_style.position = SpacePosition::zero();
+                *body_node.borrow_mut().computed_style.mut_box_pos() = SpacePosition::zero();
             }
             // 计算size，完成之后还会有部分percentage的size没有计算，因为他们的parent的size是auto
             self.calculate_size_by_parent_recursive(&body_node)?;
@@ -216,7 +216,7 @@ impl<'a> RenderTree<'a> {
 
         for child in children {
             let child_ref = child.borrow();
-            let child_size = &child_ref.computed_style.size;
+            let child_size = &child_ref.computed_style.box_size();
             match flex_direction {
                 FlexDirection::X | FlexDirection::ReverseX => {
                     child_total_size.x.add(&child_size.x);
@@ -264,7 +264,7 @@ impl<'a> RenderTree<'a> {
         })?;
         let parent_ref = parent.borrow();
 
-        let parent_size = &parent_ref.computed_style.size;
+        let parent_size = parent_ref.computed_style.box_size();
         let size = node_ref.specified_style.size.clone();
 
         // Calculate sizes for each dimension using the helper function
@@ -274,9 +274,10 @@ impl<'a> RenderTree<'a> {
 
         node_ref
             .computed_style
-            .size
+            .mut_content_size()
             .assign_priority(SpaceSize::new(new_x, new_y, new_z));
-        println!("id={:?} size={}", node_ref.id, node_ref.computed_style.size);
+
+        node_ref.computed_style.margin = node_ref.specified_style.margin.clone();
         match parent_ref.specified_style.display {
             // parent是flex，就是用flex-basis计算size
             style::Display::Flex => {
@@ -289,7 +290,7 @@ impl<'a> RenderTree<'a> {
                 let new_z = Self::calculate_dimension_size(&basis_size.z, &size.z);
                 node_ref
                     .computed_style
-                    .size
+                    .mut_content_size()
                     .assign_priority(SpaceSize::new(new_x, new_y, new_z));
             }
             style::Display::Cube => {}
@@ -358,7 +359,7 @@ impl<'a> RenderTree<'a> {
             RenderNodeType::Item => {
                 // Clone the text_content to avoid borrowing issues
                 let name = node_ref.text_content.clone();
-                node_ref.computed_style.size =
+                *node_ref.computed_style.mut_content_size() =
                     SpaceSize::from_dim3_length(self.package.get_space_size(&name).ok_or(
                         RsmlError::PackageConfigError(format!(
                             "object/group not found. name={}",
@@ -371,17 +372,17 @@ impl<'a> RenderTree<'a> {
             }
             RenderNodeType::Space => match node_ref.specified_style.display {
                 style::Display::Flex => {
-                    if !node_ref.computed_style.size.all_length() {
+                    if !node_ref.computed_style.box_size().all_length() {
                         let child_total_size = Self::cal_flex_child_size(&node_ref);
                         println!("tag={:?} child_size={}", node_ref.id, child_total_size);
                         node_ref
                             .computed_style
-                            .size
+                            .mut_content_size()
                             .assign_priority(child_total_size);
                     }
                 }
                 style::Display::Cube => {
-                    if node_ref.computed_style.size.has_auto() {
+                    if node_ref.computed_style.box_size().has_auto() {
                         return Err(RsmlError::CubeSizeError);
                     }
                 }
@@ -414,10 +415,38 @@ impl<'a> RenderTree<'a> {
 
     /// 计算Flex布局中子元素的位置
     fn calculate_flex_child_positions(&self, node_ref: &mut RenderNode) -> Result<()> {
+        // Debug info: print current node id, child ids, and layout properties
+        let node_id = node_ref.id.clone().unwrap_or("No ID".to_string());
+        
         let flex_direction = &node_ref.specified_style.flex_direction;
         let justify_content = &node_ref.specified_style.justify_content;
         let align_items = &node_ref.specified_style.align_items;
-        let node_size = &node_ref.computed_style.size;
+        
+        println!(
+            "calculate_flex_child_positions - node_id: {}, justify_content: {:?}, align_items: ({:?}, {:?})",
+            node_id,
+            justify_content,
+            align_items.cross1,
+            align_items.cross2
+        );
+        
+        // Print each child with indentation
+        for child in &node_ref.children {
+            let child_ref = child.borrow();
+            let child_id = child_ref.id.clone().unwrap_or("No ID".to_string());
+            let child_box_size = child_ref.computed_style.box_size();
+            let child_margin = &child_ref.computed_style.margin;
+            println!(
+                "  child: {} (box_size: {}, margin: {})",
+                child_id,
+                child_box_size,
+                child_margin
+            );
+        }
+
+        println!("");
+
+        let node_size = &node_ref.computed_style.box_size();
 
         // 获取节点的尺寸（转换为Length）
         let node_length = node_size.get_length().ok_or(RsmlError::RenderTree {
@@ -428,14 +457,14 @@ impl<'a> RenderTree<'a> {
         let mut total_child_size =
             Dim3::new(Length::from_mm(0), Length::from_mm(0), Length::from_mm(0));
         let mut child_lengths = Vec::new();
-
+        
         // 收集子元素的尺寸信息
         for child in &node_ref.children {
             let child_ref = child.borrow();
             let child_size =
                 &child_ref
                     .computed_style
-                    .size
+                    .box_size()
                     .get_length()
                     .ok_or(RsmlError::RenderTree {
                         message: format!(
@@ -456,20 +485,24 @@ impl<'a> RenderTree<'a> {
             FlexDirection::X | FlexDirection::ReverseX => {
                 // 主轴是X轴，交叉轴是Y和Z
                 let free_space = node_length.x.mm() as f64 - total_child_size.x.mm() as f64;
-                
+
                 // Get child names corresponding to sizes
-                let child_names: Vec<String> = node_ref.children.iter()
+                let mut child_names: Vec<Option<String>> = node_ref
+                    .children
+                    .iter()
                     .map(|child| {
                         let child_borrowed = child.borrow();
-                        child_borrowed.text_content.clone()
+                        child_borrowed.id.clone()
                     })
                     .collect();
-                
-                let child_sizes: Vec<f64> = child_lengths
-                    .iter()
-                    .map(|dim| dim.x.mm() as f64)
-                    .collect();
-                
+
+                let child_sizes: Vec<f64> =
+                    child_lengths.iter().map(|dim| dim.x.mm() as f64).collect();
+
+                if matches!(flex_direction, FlexDirection::ReverseX) {
+                    child_lengths.reverse();
+                    child_names.reverse();
+                }
                 let mut positions = self.calculate_positions_on_axis(
                     node_length.x.mm() as f64,
                     free_space,
@@ -524,20 +557,24 @@ impl<'a> RenderTree<'a> {
             FlexDirection::Y | FlexDirection::ReverseY => {
                 // 主轴是Y轴，交叉轴是X和Z
                 let free_space = node_length.y.mm() as f64 - total_child_size.y.mm() as f64;
-                
+
                 // Get child names corresponding to sizes
-                let child_names: Vec<String> = node_ref.children.iter()
+                let mut child_names: Vec<Option<String>> = node_ref
+                    .children
+                    .iter()
                     .map(|child| {
                         let child_borrowed = child.borrow();
-                        child_borrowed.text_content.clone()
+                        child_borrowed.id.clone()
                     })
                     .collect();
-                
-                let child_sizes: Vec<f64> = child_lengths
-                    .iter()
-                    .map(|dim| dim.y.mm() as f64)
-                    .collect();
-                
+
+                let child_sizes: Vec<f64> =
+                    child_lengths.iter().map(|dim| dim.y.mm() as f64).collect();
+
+                if matches!(flex_direction, FlexDirection::ReverseY) {
+                    child_lengths.reverse();
+                    child_names.reverse();
+                }
                 let mut positions = self.calculate_positions_on_axis(
                     node_length.y.mm() as f64,
                     free_space,
@@ -592,25 +629,25 @@ impl<'a> RenderTree<'a> {
             FlexDirection::Z | FlexDirection::ReverseZ => {
                 // 主轴是Z轴，交叉轴是X和Y
                 let free_space = node_length.z.mm() as f64 - total_child_size.z.mm() as f64;
-                
+
                 // Get child names corresponding to sizes
-                let mut child_names: Vec<String> = node_ref.children.iter()
+                let mut child_names: Vec<Option<String>> = node_ref
+                    .children
+                    .iter()
                     .map(|child| {
                         let child_borrowed = child.borrow();
-                        child_borrowed.text_content.clone()
+                        child_borrowed.id.clone()
                     })
                     .collect();
-                
+
                 if matches!(flex_direction, FlexDirection::Z) {
                     child_lengths.reverse();
                     child_names.reverse();
                 }
-                
-                let child_sizes: Vec<f64> = child_lengths
-                    .iter()
-                    .map(|dim| dim.z.mm() as f64)
-                    .collect();
-                
+
+                let child_sizes: Vec<f64> =
+                    child_lengths.iter().map(|dim| dim.z.mm() as f64).collect();
+
                 let mut positions = self.calculate_positions_on_axis(
                     node_length.z.mm() as f64,
                     free_space,
@@ -663,13 +700,13 @@ impl<'a> RenderTree<'a> {
                 }
             }
         }
-        let base_pos = node_ref.computed_style.position.clone();
+        let base_pos = node_ref.computed_style.box_pos().clone();
         // 更新子元素的位置
         for (i, child) in node_ref.children.iter().enumerate() {
             if i < child_positions.len() {
                 let mut pos = style::SpacePosition::from_dim3(child_positions[i]);
                 pos.add(&base_pos);
-                child.borrow_mut().computed_style.position = pos;
+                *child.borrow_mut().computed_style.mut_box_pos() = pos;
             }
         }
 
@@ -682,20 +719,24 @@ impl<'a> RenderTree<'a> {
         total_space: f64,
         free_space: f64,
         child_sizes: &[f64],
-        child_names: &[String],
+        child_names: &[Option<String>],
         justify_content: &style::JustifyContent,
     ) -> Vec<f64> {
-        println!("justify_content={:?}", justify_content);
+        // println!("justify_content={:?}", justify_content);
         // Print child_size with corresponding names
-        for (i, &size) in child_sizes.iter().enumerate() {
-            let name = if i < child_names.len() { 
-                &child_names[i] 
-            } else { 
-                "unnamed" 
-            };
-            println!("child_size: {}, name: {}", size, name);
-        }
-        
+        // for (i, &size) in child_sizes.iter().enumerate() {
+        //     let name = if i < child_names.len() {
+        //         &child_names[i]
+        //     } else {
+        //         &None
+        //     };
+        //     println!(
+        //         "total_space={} free_space={} child_size: {}, name: {:?}",
+        //         total_space, free_space, size, name
+        //     );
+        // }
+
+        // println!("\n\n");
         let mut positions = Vec::new();
 
         match justify_content {
@@ -806,14 +847,23 @@ pub fn print_render_tree_computed(node: &Rc<RefCell<RenderNode>>, depth: usize) 
 fn print_computed_style_info(node_ref: &RenderNode, depth: usize) {
     let indent = "  ".repeat(depth);
 
-    println!("{}Computed Size={}", indent, node_ref.computed_style.size);
+    println!(
+        "{}Computed Size={}",
+        indent,
+        node_ref.computed_style.box_size()
+    );
 
     // 打印位置信息
     println!(
         "{}Computed Position={}",
-        indent, node_ref.computed_style.position
+        indent,
+        node_ref.computed_style.box_pos()
     );
 
+    println!(
+        "{}Computed Margin={}",
+        indent, node_ref.computed_style.margin
+    );
     // 打印对象信息（如果存在）
     if let Some(object) = &node_ref.computed_style.object {
         println!("{}Object={:?}", indent, object);
