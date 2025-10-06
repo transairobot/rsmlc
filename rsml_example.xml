@@ -2,25 +2,24 @@
   <head>
     <style> 
     <![CDATA[
-      [[styles]] 
-      selector = "leg1" 
-      pos = "min min min" 
-      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
 
       [[styles]] 
-      selector = "leg2" 
-      pos = "min max min" 
-      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+      selector = "#table-legs" 
+      size = "100% 100% auto"
+      flex-direction = "y"
+      justify-content = "space-between"
 
-      [[styles]] 
-      selector = "leg3" 
-      pos = "max max min" 
-      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
-
-      [[styles]] 
-      selector = "leg4" 
-      pos = "max min min" <!-- 顺序是x y z. 这里是x取最大值, yz取最小值 -->
-      margin: "10cm 10cm 10cm 10cm 0cm 0cm" <!--方向： -x x -y y -z z-->
+      [[styles]]
+      selector = "#left-legs, #right-legs" 
+      size="100% auto auto"
+      flex-direction="x"
+      justify-content="space-between"
+      [[styles]]
+      selector = ".leg" 
+      margin-x = "10cm"
+      margin-y = "10cm"
+      margin-x-reverse = "10cm"
+      margin-y-reverse = "10cm"
       ]]>
     </style>
   </head>
@@ -29,17 +28,14 @@
     <space id="main_room" style="size:10m 10m 10m;">
       <space id="table_area">
         <object id="table_plane"> table_plane </object>
-        <space id="table-legs"
-          style="size:100% 100% auto;flex-direction:y;justify-content:space-between"> <!-- -->
-          <space id="left-legs"
-            style="size:100% auto auto;flex-direction:x;justify-content:space-between">
-            <object id="leg1" style="margin-x-reverse:10cm;margin-y-reverse:10cm"> table_leg </object> <!--table_leg定义在rsml_config.toml中-->
-            <object id="leg2" style="margin-x:10cm;margin-y-reverse:10cm"> table_leg </object>
+        <space id="table-legs">
+          <space id="left-legs">
+            <object id="leg1" class="leg"> table_leg </object>
+            <object id="leg2" class="leg"> table_leg </object>
           </space>
-          <space id="right-legs"
-            style="size:100% auto auto;flex-direction:x;justify-content:space-between">
-            <object id="leg3" style="margin-x-reverse:10cm;margin-y:10cm"> table_leg </object>
-            <object id="leg4" style="margin-x:10cm;margin-y:10cm"> table_leg </object>
+          <space id="right-legs">
+            <object id="leg3" class="leg"> table_leg </object>
+            <object id="leg4" class="leg"> table_leg </object>
           </space>
         </space>
       </space>

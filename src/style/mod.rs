@@ -1,13 +1,16 @@
 use crate::base::{Length, Percentage};
 use crate::dim3::Dim3;
 use crate::package::Object;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use rand::Rng;
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
 mod flex;
+mod selector_style;
 pub use flex::{AlignItem, AlignItems, FlexBasis, FlexDirection, JustifyContent};
+pub use selector_style::SelectorStyle;
 
 /// Enum for size values, supporting Length, Percentage, and Auto.
 #[derive(Debug, Clone, PartialEq)]
@@ -648,28 +651,12 @@ impl Style {
         &self.margin.z_reverse
     }
 
-    /// 从样式字符串解析Style对象
-    /// 支持格式如: "size:10m 10m 10m;display:flex;justify-content:flex-end;"
-    pub fn from_style_string(style_str: &str) -> Result<Self> {
+    /// 从样式Map解析Style对象
+    pub fn from_style_map(style_map: &std::collections::HashMap<String, String>) -> Result<Self> {
         let mut style = Style::new();
 
-        // 分割样式声明
-        for declaration in style_str.split(';') {
-            let declaration = declaration.trim();
-            if declaration.is_empty() {
-                continue;
-            }
-
-            // 分割属性名和值
-            let parts: Vec<&str> = declaration.split(':').collect();
-            if parts.len() != 2 {
-                return Err(anyhow!("Invalid style declaration: {}", declaration));
-            }
-
-            let property = parts[0].trim();
-            let value = parts[1].trim();
-
-            match property {
+        for (property, value) in style_map {
+            match property.as_str() {
                 "size" => {
                     // 解析尺寸，格式如 "10m 50% auto"
                     let size_parts: Vec<&str> = value.split_whitespace().collect();
@@ -684,16 +671,16 @@ impl Style {
                     style.size = SpaceSize::new(x, y, z);
                 }
                 "display" => {
-                    style.display = Display::from_str(value)?;
+                    style.display = Display::from_str(&value)?;
                 }
                 "justify-content" => {
-                    style.justify_content = JustifyContent::from_str(value)?;
+                    style.justify_content = JustifyContent::from_str(&value)?;
                 }
                 "align-items" => {
-                    style.align_items = AlignItems::from_str(value)?;
+                    style.align_items = AlignItems::from_str(&value)?;
                 }
                 "flex-direction" => {
-                    style.flex_direction = FlexDirection::from_str(value)?;
+                    style.flex_direction = FlexDirection::from_str(&value)?;
                 }
                 "pos" => {
                     // 解析位置，格式如 "min max 10cm" 或 "auto auto auto"
@@ -709,7 +696,7 @@ impl Style {
                     style.position = SpacePosition { x, y, z };
                 }
                 "flex-basis" => {
-                    style.flex_basis = FlexBasis::from_str(value)?;
+                    style.flex_basis = FlexBasis::from_str(&value)?;
                 }
                 "margin" => {
                     // 解析边距，格式如 "10m 20m 15m 5m 10m 8m" - x, y, z, x_reverse, y_reverse, z_reverse (all must be lengths)
@@ -731,32 +718,32 @@ impl Style {
                 }
                 "margin-x" => {
                     // 解析x轴边距，格式如 "10m" 或 "50%"
-                    let x = MarginValue::from_str(value)?;
+                    let x = MarginValue::from_str(&value)?;
                     style.margin.x = x;
                 }
                 "margin-y" => {
                     // 解析y轴边距，格式如 "10m" 或 "50%"
-                    let y = MarginValue::from_str(value)?;
+                    let y = MarginValue::from_str(&value)?;
                     style.margin.y = y;
                 }
                 "margin-z" => {
                     // 解析z轴边距，格式如 "10m" 或 "50%"
-                    let z = MarginValue::from_str(value)?;
+                    let z = MarginValue::from_str(&value)?;
                     style.margin.z = z;
                 }
                 "margin-x-reverse" => {
                     // 解析x轴反向边距，格式如 "10m" 或 "50%"
-                    let x = MarginValue::from_str(value)?;
+                    let x = MarginValue::from_str(&value)?;
                     style.margin.x_reverse = x;
                 }
                 "margin-y-reverse" => {
                     // 解析y轴反向边距，格式如 "10m" 或 "50%"
-                    let y = MarginValue::from_str(value)?;
+                    let y = MarginValue::from_str(&value)?;
                     style.margin.y_reverse = y;
                 }
                 "margin-z-reverse" => {
                     // 解析z轴反向边距，格式如 "10m" 或 "50%"
-                    let z = MarginValue::from_str(value)?;
+                    let z = MarginValue::from_str(&value)?;
                     style.margin.z_reverse = z;
                 }
                 _ => {
@@ -767,6 +754,34 @@ impl Style {
         }
 
         Ok(style)
+    }
+
+    /// 从样式字符串解析Style对象
+    /// 支持格式如: "size:10m 10m 10m;display:flex;justify-content:flex-end;"
+    pub fn from_style_string(style_str: &str) -> Result<Self> {
+        // Parse the style string into a map
+        let mut style_map = std::collections::HashMap::new();
+
+        for declaration in style_str.split(';') {
+            let declaration = declaration.trim();
+            if declaration.is_empty() {
+                continue;
+            }
+
+            // 分割属性名和值
+            let parts: Vec<&str> = declaration.split(':').collect();
+            if parts.len() != 2 {
+                return Err(anyhow!("Invalid style declaration: {}", declaration));
+            }
+
+            let property = parts[0].trim().to_string();
+            let value = parts[1].trim().to_string();
+
+            style_map.insert(property, value);
+        }
+
+        // Call from_style_map to handle the actual parsing
+        Style::from_style_map(&style_map)
     }
 }
 
@@ -801,23 +816,35 @@ impl ComputedStyle {
         let mut box_x = self.size.x.clone();
         let mut box_y = self.size.y.clone();
         let mut box_z = self.size.z.clone();
-        
+
         // Add margin values if they are Length types
-        if let (SizeValue::Length(size_x), MarginValue::Length(margin_x), MarginValue::Length(margin_x_reverse)) = 
-            (&box_x, &self.margin.x, &self.margin.x_reverse) {
+        if let (
+            SizeValue::Length(size_x),
+            MarginValue::Length(margin_x),
+            MarginValue::Length(margin_x_reverse),
+        ) = (&box_x, &self.margin.x, &self.margin.x_reverse)
+        {
             box_x = SizeValue::Length(*size_x + *margin_x + *margin_x_reverse);
         }
-        
-        if let (SizeValue::Length(size_y), MarginValue::Length(margin_y), MarginValue::Length(margin_y_reverse)) = 
-            (&box_y, &self.margin.y, &self.margin.y_reverse) {
+
+        if let (
+            SizeValue::Length(size_y),
+            MarginValue::Length(margin_y),
+            MarginValue::Length(margin_y_reverse),
+        ) = (&box_y, &self.margin.y, &self.margin.y_reverse)
+        {
             box_y = SizeValue::Length(*size_y + *margin_y + *margin_y_reverse);
         }
-        
-        if let (SizeValue::Length(size_z), MarginValue::Length(margin_z), MarginValue::Length(margin_z_reverse)) = 
-            (&box_z, &self.margin.z, &self.margin.z_reverse) {
+
+        if let (
+            SizeValue::Length(size_z),
+            MarginValue::Length(margin_z),
+            MarginValue::Length(margin_z_reverse),
+        ) = (&box_z, &self.margin.z, &self.margin.z_reverse)
+        {
             box_z = SizeValue::Length(*size_z + *margin_z + *margin_z_reverse);
         }
-        
+
         SpaceSize::new(box_x, box_y, box_z)
     }
 
@@ -842,24 +869,31 @@ impl ComputedStyle {
         let mut pos_x = self.position.x.clone();
         let mut pos_y = self.position.y.clone();
         let mut pos_z = self.position.z.clone();
-        
+
         // Add margin values if they are Length types
-        if let (PositionValue::Length(pos_x_val), MarginValue::Length(margin_x)) = 
-            (&pos_x, &self.margin.x) {
+        if let (PositionValue::Length(pos_x_val), MarginValue::Length(margin_x)) =
+            (&pos_x, &self.margin.x)
+        {
             pos_x = PositionValue::Length(*pos_x_val + *margin_x);
         }
-        
-        if let (PositionValue::Length(pos_y_val), MarginValue::Length(margin_y)) = 
-            (&pos_y, &self.margin.y) {
+
+        if let (PositionValue::Length(pos_y_val), MarginValue::Length(margin_y)) =
+            (&pos_y, &self.margin.y)
+        {
             pos_y = PositionValue::Length(*pos_y_val + *margin_y);
         }
-        
-        if let (PositionValue::Length(pos_z_val), MarginValue::Length(margin_z)) = 
-            (&pos_z, &self.margin.z) {
+
+        if let (PositionValue::Length(pos_z_val), MarginValue::Length(margin_z)) =
+            (&pos_z, &self.margin.z)
+        {
             pos_z = PositionValue::Length(*pos_z_val + *margin_z);
         }
-        
-        SpacePosition { x: pos_x, y: pos_y, z: pos_z }
+
+        SpacePosition {
+            x: pos_x,
+            y: pos_y,
+            z: pos_z,
+        }
     }
 }
 
@@ -1425,31 +1459,31 @@ mod tests {
             MarginValue::Length(Length::from_mm(0))
         ); // Default value
     }
-    
+
     #[test]
     fn test_computed_style_box_size() {
         // 测试box_size方法
         let mut computed_style = ComputedStyle::default();
-        
+
         // 设置尺寸
         computed_style.size = SpaceSize::new(
-            SizeValue::Length(Length::from_cm(10)),  // x size = 10cm
-            SizeValue::Length(Length::from_cm(20)),  // y size = 20cm
-            SizeValue::Length(Length::from_cm(30)),  // z size = 30cm
+            SizeValue::Length(Length::from_cm(10)), // x size = 10cm
+            SizeValue::Length(Length::from_cm(20)), // y size = 20cm
+            SizeValue::Length(Length::from_cm(30)), // z size = 30cm
         );
-        
+
         // 设置边距
         computed_style.margin = MarginSize::new(
-            MarginValue::Length(Length::from_cm(1)),   // x margin = 1cm
-            MarginValue::Length(Length::from_cm(2)),   // y margin = 2cm
-            MarginValue::Length(Length::from_cm(3)),   // z margin = 3cm
-            MarginValue::Length(Length::from_cm(4)),   // x reverse margin = 4cm
-            MarginValue::Length(Length::from_cm(5)),   // y reverse margin = 5cm
-            MarginValue::Length(Length::from_cm(6)),   // z reverse margin = 6cm
+            MarginValue::Length(Length::from_cm(1)), // x margin = 1cm
+            MarginValue::Length(Length::from_cm(2)), // y margin = 2cm
+            MarginValue::Length(Length::from_cm(3)), // z margin = 3cm
+            MarginValue::Length(Length::from_cm(4)), // x reverse margin = 4cm
+            MarginValue::Length(Length::from_cm(5)), // y reverse margin = 5cm
+            MarginValue::Length(Length::from_cm(6)), // z reverse margin = 6cm
         );
-        
+
         let box_size = computed_style.box_size();
-        
+
         // 总尺寸应该是原始尺寸加上两边的边距
         // x = 10 + 1 + 4 = 15cm
         // y = 20 + 2 + 5 = 27cm
@@ -1458,31 +1492,31 @@ mod tests {
         assert_eq!(box_size.y, SizeValue::Length(Length::from_cm(27)));
         assert_eq!(box_size.z, SizeValue::Length(Length::from_cm(39)));
     }
-    
+
     #[test]
     fn test_computed_style_content_pos() {
         // 测试content_pos方法
         let mut computed_style = ComputedStyle::default();
-        
+
         // 设置位置
         computed_style.position = SpacePosition {
-            x: PositionValue::Length(Length::from_cm(5)),   // x position = 5cm
-            y: PositionValue::Length(Length::from_cm(10)),  // y position = 10cm
-            z: PositionValue::Length(Length::from_cm(15)),  // z position = 15cm
+            x: PositionValue::Length(Length::from_cm(5)), // x position = 5cm
+            y: PositionValue::Length(Length::from_cm(10)), // y position = 10cm
+            z: PositionValue::Length(Length::from_cm(15)), // z position = 15cm
         };
-        
+
         // 设置边距
         computed_style.margin = MarginSize::new(
-            MarginValue::Length(Length::from_cm(1)),   // x margin = 1cm
-            MarginValue::Length(Length::from_cm(2)),   // y margin = 2cm
-            MarginValue::Length(Length::from_cm(3)),   // z margin = 3cm
-            MarginValue::Length(Length::from_cm(4)),   // x reverse margin = 4cm (should not affect content_pos)
-            MarginValue::Length(Length::from_cm(5)),   // y reverse margin = 5cm (should not affect content_pos)
-            MarginValue::Length(Length::from_cm(6)),   // z reverse margin = 6cm (should not affect content_pos)
+            MarginValue::Length(Length::from_cm(1)), // x margin = 1cm
+            MarginValue::Length(Length::from_cm(2)), // y margin = 2cm
+            MarginValue::Length(Length::from_cm(3)), // z margin = 3cm
+            MarginValue::Length(Length::from_cm(4)), // x reverse margin = 4cm (should not affect content_pos)
+            MarginValue::Length(Length::from_cm(5)), // y reverse margin = 5cm (should not affect content_pos)
+            MarginValue::Length(Length::from_cm(6)), // z reverse margin = 6cm (should not affect content_pos)
         );
-        
+
         let content_pos = computed_style.content_pos();
-        
+
         // 内容位置应该是原始位置加上 x, y, z 边距（不包括反向边距）
         // x = 5 + 1 = 6cm
         // y = 10 + 2 = 12cm

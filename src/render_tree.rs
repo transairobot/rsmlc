@@ -2,7 +2,7 @@ use crate::base::Length;
 use crate::dim3::Dim3;
 use crate::error::{Result, RsmlError};
 use crate::package::{Object, Package};
-use crate::style::{self, FlexDirection, SpacePosition, SpaceSize, Style};
+use crate::style::{self, FlexDirection, SelectorStyle, SpacePosition, SpaceSize, Style};
 use crate::xml_parser::Element;
 use rand::prelude::IndexedRandom;
 use std::cell::RefCell;
@@ -39,11 +39,17 @@ pub struct RenderNode {
     /// Select attribute for groups (if applicable)
     pub select_attr: Option<String>,
 
+    /// 节点的class列表
+    pub class: Vec<String>,
+
     /// 父节点（弱引用，避免循环引用）
     pub parent: Weak<RefCell<RenderNode>>,
 
     /// 子节点
     pub children: Vec<Rc<RefCell<RenderNode>>>,
+
+    /// 样式Map
+    pub style_map: std::collections::HashMap<String, String>,
 }
 
 impl RenderNode {
@@ -57,8 +63,10 @@ impl RenderNode {
             specified_style: Style::new(),
             computed_style: style::ComputedStyle::default(),
             select_attr: None,
+            class: Vec::new(),
             parent: Weak::new(),
             children: Vec::new(),
+            style_map: std::collections::HashMap::new(),
         }
     }
 
@@ -93,12 +101,182 @@ impl RenderNode {
 pub struct RenderTree<'a> {
     pub root: Rc<RefCell<RenderNode>>,
     package: &'a Package,
+    pub selector_styles: Vec<SelectorStyle>,
 }
 
 impl<'a> RenderTree<'a> {
-    pub fn new(dom_element: &Element, package: &'a Package) -> Result<Self> {
+    pub fn new(dom_element: &Element, package: &'a Package) -> anyhow::Result<Self> {
+        let selector_styles = Self::parse_styles_from_head(dom_element)?;
         let root = Self::build_node_recursive(dom_element)?;
-        Ok(Self { root, package })
+        let mut this = Self {
+            root,
+            package,
+            selector_styles,
+        };
+        this.merge_style_selector();
+        this.parse_style_map_recursive(&this.root)?;
+        Ok(this)
+    }
+
+    pub fn parse_style_map_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> anyhow::Result<()>{
+        let mut node_ref = node.borrow_mut();
+
+        node_ref.specified_style = style::Style::from_style_map(&node_ref.style_map)?;
+        
+        let children = node_ref.children.clone(); // Clone the children vec to avoid borrow issues
+        drop(node_ref); // Release the borrow
+
+        // Recursively process all children
+        for child in &children {
+            self.parse_style_map_recursive(child)?;
+        }
+        Ok(())
+    }
+    pub fn merge_style_selector(&mut self) {
+        // Process each selector style in the list
+        for selector_style in &self.selector_styles {
+            // Process ID selectors
+            for id in &selector_style.id_selectors {
+                if let Some(node) = self.find_node_by_id(id) {
+                    self.apply_style_to_node(&node, selector_style);
+                }
+            }
+
+            // Process class selectors
+            for class in &selector_style.class_selectors {
+                self.apply_style_to_nodes_with_class(class, selector_style);
+            }
+        }
+    }
+
+    /// Apply styles from a selector style to a specific node
+    fn apply_style_to_node(&self, node: &Rc<RefCell<RenderNode>>, selector_style: &SelectorStyle) {
+        println!("apply_style_to_node: selector_style={:?}", selector_style);
+        let mut node_ref = node.borrow_mut();
+        for (property, value) in &selector_style.style_map {
+            node_ref.style_map.insert(property.clone(), value.clone());
+        }
+    }
+
+    /// Apply styles from a selector style to all nodes with a specific class
+    fn apply_style_to_nodes_with_class(&self, class: &str, selector_style: &SelectorStyle) {
+        self.apply_style_to_nodes_with_class_recursive(&self.root, class, selector_style);
+    }
+
+    /// Recursively apply styles to all nodes with a specific class
+    fn apply_style_to_nodes_with_class_recursive(
+        &self,
+        node: &Rc<RefCell<RenderNode>>,
+        class: &str,
+        selector_style: &SelectorStyle,
+    ) {
+        let node_ref = node.borrow();
+
+        // Check if this node has the matching class
+        let has_class = node_ref.class.iter().any(|c| c == class);
+        let children = node_ref.children.clone(); // Clone the children vec to avoid borrow issues
+        drop(node_ref); // Release the borrow
+
+        if has_class {
+            // Apply the styles to this node
+            self.apply_style_to_node(node, selector_style);
+        }
+
+        // Recursively process all children
+        for child in &children {
+            self.apply_style_to_nodes_with_class_recursive(child, class, selector_style);
+        }
+    }
+
+    /// Find and parse styles from the head element
+    fn parse_styles_from_head(root_element: &Element) -> anyhow::Result<Vec<SelectorStyle>> {
+        let mut styles = Vec::new();
+
+        // Find the head element
+        if let Some(head_element) = Self::find_element_by_tag(root_element, "head") {
+            // Find the style element within head
+            if let Some(style_element) = Self::find_element_by_tag(&head_element, "style") {
+                // Get the content of the style element (this could be in CDATA)
+                let style_content = &style_element.text;
+
+                // Parse the TOML-style content
+                if !style_content.trim().is_empty() {
+                    styles = SelectorStyle::parse_from_toml(style_content)?;
+                }
+            }
+        }
+
+        Ok(styles)
+    }
+
+    /// Helper function to find an element by tag name
+    fn find_element_by_tag(element: &Element, tag_name: &str) -> Option<Element> {
+        if element.name == tag_name {
+            return Some(element.clone());
+        }
+
+        for child in &element.children {
+            if let Some(found) = Self::find_element_by_tag(child, tag_name) {
+                return Some(found);
+            }
+        }
+
+        None
+    }
+
+    fn find_node_by_id(&self, id: &str) -> Option<Rc<RefCell<RenderNode>>> {
+        Self::find_node_by_id_recursive(&self.root, id)
+    }
+
+    /// Helper function to recursively find a node by ID
+    fn find_node_by_id_recursive(
+        node: &Rc<RefCell<RenderNode>>,
+        id: &str,
+    ) -> Option<Rc<RefCell<RenderNode>>> {
+        let node_ref = node.borrow();
+
+        // Check if the current node has the matching ID
+        if let Some(node_id) = &node_ref.id {
+            if node_id == id {
+                return Some(node.clone());
+            }
+        }
+
+        // Recursively search in children
+        for child in &node_ref.children {
+            if let Some(found_node) = Self::find_node_by_id_recursive(child, id) {
+                return Some(found_node);
+            }
+        }
+
+        None
+    }
+
+    /// Find a node by class attribute (returns the first node that has the specified class)
+    pub fn find_node_by_class(&self, class: &str) -> Option<Rc<RefCell<RenderNode>>> {
+        Self::find_node_by_class_recursive(&self.root, class)
+    }
+
+    /// Helper function to recursively find a node by class
+    fn find_node_by_class_recursive(
+        node: &Rc<RefCell<RenderNode>>,
+        class: &str,
+    ) -> Option<Rc<RefCell<RenderNode>>> {
+        let node_ref = node.borrow();
+
+        // Check if the current node has the matching class
+        if node_ref.class.iter().any(|c| c == class) {
+            return Some(node.clone());
+        }
+
+        // Recursively search in children
+        for child in &node_ref.children {
+            if let Some(found_node) = Self::find_node_by_class_recursive(child, class) {
+                return Some(found_node);
+            }
+        }
+
+        None
     }
 
     /// Get a reference to the package used in this render tree
@@ -162,6 +340,14 @@ impl<'a> RenderTree<'a> {
             render_node.set_id(id.clone());
         }
 
+        // Extract the class attribute
+        if let Some(class_str) = dom_element.get_attribute("class") {
+            render_node.class = class_str
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect();
+        }
+
         // Extract the select attribute for groups
         if let Some(select) = dom_element.get_attribute("select") {
             render_node.select_attr = Some(select.clone());
@@ -182,18 +368,27 @@ impl<'a> RenderTree<'a> {
         if render_node.tag_name == "body" {
             style = body_style.to_owned();
         }
-        match render_node.node_type {
-            RenderNodeType::Space => style = format!("{};{}", space_style, style),
-            RenderNodeType::Item => style = format!("{};{}", item_style, style),
-        }
+        style = match render_node.node_type {
+            RenderNodeType::Space => format!("{};{}", space_style, style),
+            RenderNodeType::Item => format!("{};{}", item_style, style),
+        };
 
-        match Style::from_style_string(&style) {
-            Ok(style) => render_node.set_specified_style(style),
-            Err(e) => eprintln!(
-                "Warning: Failed to parse style for element '{}': {}",
-                dom_element.name, e
-            ),
+        // Parse the style string into a map and store it
+        let mut style_map = std::collections::HashMap::new();
+        for declaration in style.split(';') {
+            let declaration = declaration.trim();
+            if declaration.is_empty() {
+                continue;
+            }
+
+            let parts: Vec<&str> = declaration.split(':').collect();
+            if parts.len() == 2 {
+                let property = parts[0].trim().to_string();
+                let value = parts[1].trim().to_string();
+                style_map.insert(property, value);
+            }
         }
+        render_node.style_map = style_map;
 
         let rc_node = Rc::new(RefCell::new(render_node));
 
@@ -417,19 +612,16 @@ impl<'a> RenderTree<'a> {
     fn calculate_flex_child_positions(&self, node_ref: &mut RenderNode) -> Result<()> {
         // Debug info: print current node id, child ids, and layout properties
         let node_id = node_ref.id.clone().unwrap_or("No ID".to_string());
-        
+
         let flex_direction = &node_ref.specified_style.flex_direction;
         let justify_content = &node_ref.specified_style.justify_content;
         let align_items = &node_ref.specified_style.align_items;
-        
+
         println!(
             "calculate_flex_child_positions - node_id: {}, justify_content: {:?}, align_items: ({:?}, {:?})",
-            node_id,
-            justify_content,
-            align_items.cross1,
-            align_items.cross2
+            node_id, justify_content, align_items.cross1, align_items.cross2
         );
-        
+
         // Print each child with indentation
         for child in &node_ref.children {
             let child_ref = child.borrow();
@@ -438,9 +630,7 @@ impl<'a> RenderTree<'a> {
             let child_margin = &child_ref.computed_style.margin;
             println!(
                 "  child: {} (box_size: {}, margin: {})",
-                child_id,
-                child_box_size,
-                child_margin
+                child_id, child_box_size, child_margin
             );
         }
 
@@ -457,7 +647,7 @@ impl<'a> RenderTree<'a> {
         let mut total_child_size =
             Dim3::new(Length::from_mm(0), Length::from_mm(0), Length::from_mm(0));
         let mut child_lengths = Vec::new();
-        
+
         // 收集子元素的尺寸信息
         for child in &node_ref.children {
             let child_ref = child.borrow();
@@ -916,5 +1106,174 @@ mod tests {
         assert_eq!(node.tag_name, "space");
         assert_eq!(node.id, Some("main".to_string()));
         assert_eq!(node.node_type, RenderNodeType::Space);
+    }
+
+    #[test]
+    fn test_render_node_with_class() {
+        let mut element = DomElement::new("space".to_string());
+        element
+            .attributes
+            .insert("class".to_string(), "main-container sidebar".to_string());
+
+        let package = Package::from_file("package.toml").unwrap();
+        let render_tree = RenderTree::new(&element, &package).unwrap();
+        let node = render_tree.root.borrow();
+
+        assert_eq!(node.class, vec!["main-container", "sidebar"]);
+    }
+
+    #[test]
+    fn test_find_node_by_class() {
+        let mut root_element = DomElement::new("space".to_string());
+        root_element
+            .attributes
+            .insert("class".to_string(), "root".to_string());
+
+        let mut child_element = DomElement::new("space".to_string());
+        child_element
+            .attributes
+            .insert("class".to_string(), "child main-content".to_string());
+        root_element.children.push(child_element);
+
+        let package = Package::from_file("package.toml").unwrap();
+        let render_tree = RenderTree::new(&root_element, &package).unwrap();
+
+        // Test finding the root node by class
+        let found_node = render_tree.find_node_by_class("root");
+        assert!(found_node.is_some());
+        assert_eq!(found_node.unwrap().borrow().tag_name, "space");
+
+        // Test finding the child node by class
+        let found_node = render_tree.find_node_by_class("main-content");
+        assert!(found_node.is_some());
+        assert_eq!(found_node.unwrap().borrow().tag_name, "space");
+
+        // Test finding non-existent class
+        let found_node = render_tree.find_node_by_class("non-existent");
+        assert!(found_node.is_none());
+    }
+
+    #[test]
+    fn test_merge_style_selector() {
+        // Create a DOM with an element that has both ID and class
+        let mut root_element = DomElement::new("body".to_string());
+
+        let mut child_element1 = DomElement::new("space".to_string());
+        child_element1
+            .attributes
+            .insert("id".to_string(), "myId".to_string());
+        child_element1.attributes.insert(
+            "style".to_string(),
+            "display:flex;size:5m 5m 5m".to_string(),
+        );
+        root_element.children.push(child_element1);
+
+        let mut child_element2 = DomElement::new("space".to_string());
+        child_element2
+            .attributes
+            .insert("class".to_string(), "myClass".to_string());
+        child_element2.attributes.insert(
+            "style".to_string(),
+            "margin:2cm 2cm 2cm 2cm 0cm 0cm".to_string(),
+        );
+        root_element.children.push(child_element2);
+
+        let package = Package::from_file("package.toml").unwrap();
+        let mut render_tree = RenderTree::new(&root_element, &package).unwrap();
+
+        // Add selector styles that will match the elements
+        use crate::style::SelectorStyle;
+        use std::collections::HashMap;
+
+        let mut style_map1 = HashMap::new();
+        style_map1.insert("size".to_string(), "10m 10m 10m".to_string()); // This should NOT override existing size
+        style_map1.insert("margin".to_string(), "1cm 1cm 1cm 1cm 0cm 0cm".to_string()); // This should be added
+        let selector_style1 = SelectorStyle::new("#myId".to_string(), style_map1);
+
+        let mut style_map2 = HashMap::new();
+        style_map2.insert("display".to_string(), "flex".to_string()); // This should be added
+        style_map2.insert("margin".to_string(), "5cm 5cm 5cm 5cm 0cm 0cm".to_string()); // This should NOT override existing margin
+        let selector_style2 = SelectorStyle::new(".myClass".to_string(), style_map2);
+
+        render_tree.selector_styles = vec![selector_style1, selector_style2];
+
+        // Apply the selector styles
+        render_tree.merge_style_selector();
+
+        // Find the element with ID and check that styles were applied correctly
+        if let Some(node) = render_tree.find_node_by_id("myId") {
+            let node_ref = node.borrow();
+            // The size property was already specified in the inline style, so it shouldn't be overridden
+            assert_eq!(
+                node_ref.style_map.get("size"),
+                Some(&"5m 5m 5m".to_string())
+            ); // original style should remain
+            // The margin was not in the original style, so it should be added from selector
+            assert_eq!(
+                node_ref.style_map.get("margin"),
+                Some(&"1cm 1cm 1cm 1cm 0cm 0cm".to_string())
+            );
+            assert_eq!(node_ref.style_map.get("display"), Some(&"flex".to_string()));
+        } else {
+            panic!("Node with ID 'myId' not found");
+        }
+
+        // Find the element with class and check that styles were applied correctly
+        if let Some(node) = render_tree.find_node_by_class("myClass") {
+            let node_ref = node.borrow();
+            // The margin was already in the original style, so it should NOT be overridden
+            assert_eq!(
+                node_ref.style_map.get("margin"),
+                Some(&"2cm 2cm 2cm 2cm 0cm 0cm".to_string())
+            );
+            // The display was not in the original style, so it should be added from selector
+            assert_eq!(node_ref.style_map.get("display"), Some(&"flex".to_string()));
+        } else {
+            panic!("Node with class 'myClass' not found");
+        }
+    }
+
+    #[test]
+    fn test_merge_multiple_selectors() {
+        let mut root_element = DomElement::new("body".to_string());
+
+        let mut child_element = DomElement::new("space".to_string());
+        child_element
+            .attributes
+            .insert("id".to_string(), "testId".to_string());
+        child_element
+            .attributes
+            .insert("class".to_string(), "testClass".to_string());
+        root_element.children.push(child_element);
+
+        let package = Package::from_file("package.toml").unwrap();
+        let mut render_tree = RenderTree::new(&root_element, &package).unwrap();
+
+        // Add a selector style with multiple selectors
+        use crate::style::SelectorStyle;
+        use std::collections::HashMap;
+
+        let mut style_map = HashMap::new();
+        style_map.insert(
+            "margin".to_string(),
+            "10cm 10cm 10cm 10cm 0cm 0cm".to_string(),
+        );
+        let selector_style = SelectorStyle::new("#testId, .testClass".to_string(), style_map);
+
+        render_tree.selector_styles = vec![selector_style];
+
+        // Apply the selector styles
+        render_tree.merge_style_selector();
+
+        // Find the element and verify the style was applied (it matches both selectors)
+        if let Some(node) = render_tree.find_node_by_id("testId") {
+            let node_ref = node.borrow();
+            assert_eq!(
+                node_ref.style_map.get("margin"),
+                Some(&"10cm 10cm 10cm 10cm 0cm 0cm".to_string())
+            );
+        } else {
+            panic!("Node with ID 'testId' not found");
+        }
     }
 }
