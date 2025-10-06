@@ -4,6 +4,7 @@ description = "a exampe for rsml"
 
 [objects]
 table_plane = { geom-type = "box", size = "1m 1m 10cm" }
+table_leg = { geom-type = "box", size = "10cm 10cm 50cm" }
 table_leg1 = { geom-type = "box", size = "10cm 10cm 10cm" }
 table_leg2 = { geom-type = "box", size = "10cm 10cm 20cm" }
 table_leg3 = { geom-type = "box", size = "10cm 10cm 30cm" }

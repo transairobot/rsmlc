@@ -28,16 +28,15 @@
     <!-- flex默认-z，就是按照顺序从上到下排列-->
     <space id="main_room" style="size:10m 10m 10m;">
       <space id="table_area">
-        
         <object> table_plane </object>
         <space id="table-legs" style="size:100% 100% auto;flex-direction:y;justify-content:space-between"> <!-- -->
-          <space id="left-legs" style="flex-direction:x;justify-content:space-between">
-            <object id="leg1"> table_leg1 </object> <!--table_leg定义在rsml_config.toml中-->
-            <object id="leg2"> table_leg2 </object>
+          <space id="left-legs" style="flex-basis:50%;flex-direction:x;justify-content:space-between">
+            <object id="leg1"> table_leg </object> <!--table_leg定义在rsml_config.toml中-->
+            <object id="leg2"> table_leg </object>
           </space>
-          <space id="right-legs" style="flex-direction:x;justify-content:space-between">
-            <object id="leg3"> table_leg3 </object>
-            <object id="leg4"> table_leg4 </object>
+          <space id="right-legs" style="flex-basis:50%;flex-direction:x;justify-content:space-between">
+            <object id="leg3"> table_leg </object>
+            <object id="leg4"> table_leg </object>
           </space>
         </space>
       </space>

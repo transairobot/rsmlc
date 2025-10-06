@@ -1,1 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?><mujoco model="rsml_model"><worldbody><geom name="object_0" size="0.5 0.5 0.05" pos="0.5 0.5 0.46" type="box"/><geom name="leg1" size="0.05 0.05 0.05" pos="0.15 0.95 0.06" type="box"/><geom name="leg2" size="0.05 0.05 0.1" pos="0.05 0.95 0.11" type="box"/><geom name="leg3" size="0.05 0.05 0.15" pos="0.15 0.05 0.16" type="box"/><geom name="leg4" size="0.05 0.05 0.2" pos="0.05 0.05 0.21" type="box"/><geom name="object_5" size="5 5 0.005" pos="5 5 0.005" type="box"/><light name="default_light" pos="0 0 2" mode="trackcom"/></worldbody></mujoco>
+<?xml version="1.0" encoding="utf-8"?>
+<mujoco model="rsml_model">
+    <worldbody>
+        <geom name="object_0" size="0.5 0.5 0.05" pos="0.5 0.5 0.56" type="box" />
+        <geom name="leg1" size="0.05 0.05 0.25" pos="0.95 0.95 0.26" type="box" />
+        <geom name="leg2" size="0.05 0.05 0.25" pos="0.05 0.95 0.26" type="box" />
+        <geom name="leg3" size="0.05 0.05 0.25" pos="0.95 0.05 0.26" type="box" />
+        <geom name="leg4" size="0.05 0.05 0.25" pos="0.05 0.05 0.26" type="box" />
+        <geom name="object_5" size="5 5 0.005" pos="5 5 0.005" type="box" />
+        <light name="default_light" pos="0 0 2" mode="trackcom" />
+    </worldbody>
+</mujoco>

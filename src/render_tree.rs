@@ -456,13 +456,25 @@ impl<'a> RenderTree<'a> {
             FlexDirection::X | FlexDirection::ReverseX => {
                 // 主轴是X轴，交叉轴是Y和Z
                 let free_space = node_length.x.mm() as f64 - total_child_size.x.mm() as f64;
+                
+                // Get child names corresponding to sizes
+                let child_names: Vec<String> = node_ref.children.iter()
+                    .map(|child| {
+                        let child_borrowed = child.borrow();
+                        child_borrowed.text_content.clone()
+                    })
+                    .collect();
+                
+                let child_sizes: Vec<f64> = child_lengths
+                    .iter()
+                    .map(|dim| dim.x.mm() as f64)
+                    .collect();
+                
                 let mut positions = self.calculate_positions_on_axis(
                     node_length.x.mm() as f64,
                     free_space,
-                    &child_lengths
-                        .iter()
-                        .map(|dim| dim.x.mm() as f64)
-                        .collect::<Vec<_>>(),
+                    &child_sizes,
+                    &child_names,
                     justify_content,
                 );
 
@@ -512,13 +524,25 @@ impl<'a> RenderTree<'a> {
             FlexDirection::Y | FlexDirection::ReverseY => {
                 // 主轴是Y轴，交叉轴是X和Z
                 let free_space = node_length.y.mm() as f64 - total_child_size.y.mm() as f64;
+                
+                // Get child names corresponding to sizes
+                let child_names: Vec<String> = node_ref.children.iter()
+                    .map(|child| {
+                        let child_borrowed = child.borrow();
+                        child_borrowed.text_content.clone()
+                    })
+                    .collect();
+                
+                let child_sizes: Vec<f64> = child_lengths
+                    .iter()
+                    .map(|dim| dim.y.mm() as f64)
+                    .collect();
+                
                 let mut positions = self.calculate_positions_on_axis(
                     node_length.y.mm() as f64,
                     free_space,
-                    &child_lengths
-                        .iter()
-                        .map(|dim| dim.y.mm() as f64)
-                        .collect::<Vec<_>>(),
+                    &child_sizes,
+                    &child_names,
                     justify_content,
                 );
 
@@ -568,16 +592,30 @@ impl<'a> RenderTree<'a> {
             FlexDirection::Z | FlexDirection::ReverseZ => {
                 // 主轴是Z轴，交叉轴是X和Y
                 let free_space = node_length.z.mm() as f64 - total_child_size.z.mm() as f64;
+                
+                // Get child names corresponding to sizes
+                let mut child_names: Vec<String> = node_ref.children.iter()
+                    .map(|child| {
+                        let child_borrowed = child.borrow();
+                        child_borrowed.text_content.clone()
+                    })
+                    .collect();
+                
                 if matches!(flex_direction, FlexDirection::Z) {
                     child_lengths.reverse();
+                    child_names.reverse();
                 }
+                
+                let child_sizes: Vec<f64> = child_lengths
+                    .iter()
+                    .map(|dim| dim.z.mm() as f64)
+                    .collect();
+                
                 let mut positions = self.calculate_positions_on_axis(
                     node_length.z.mm() as f64,
                     free_space,
-                    &child_lengths
-                        .iter()
-                        .map(|dim| dim.z.mm() as f64)
-                        .collect::<Vec<_>>(),
+                    &child_sizes,
+                    &child_names,
                     justify_content,
                 );
 
@@ -644,8 +682,20 @@ impl<'a> RenderTree<'a> {
         total_space: f64,
         free_space: f64,
         child_sizes: &[f64],
+        child_names: &[String],
         justify_content: &style::JustifyContent,
     ) -> Vec<f64> {
+        println!("justify_content={:?}", justify_content);
+        // Print child_size with corresponding names
+        for (i, &size) in child_sizes.iter().enumerate() {
+            let name = if i < child_names.len() { 
+                &child_names[i] 
+            } else { 
+                "unnamed" 
+            };
+            println!("child_size: {}, name: {}", size, name);
+        }
+        
         let mut positions = Vec::new();
 
         match justify_content {
