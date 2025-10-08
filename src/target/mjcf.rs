@@ -255,7 +255,11 @@ impl MjcfGenerator {
         render_tree: &RenderTree,
         directory: &str,
     ) -> Result<()> {
-        Self::convert_glb_to_stl_with_textures(render_tree, directory)?;
+        // Create mjcf subdirectory
+        let mjcf_directory = Path::new(directory).join("mjcf");
+        fs::create_dir_all(&mjcf_directory)?;
+        
+        Self::convert_glb_to_stl_with_textures(render_tree, &mjcf_directory.to_string_lossy())?;
         // Generate the Mujoco struct
         let mujoco = self.generate(render_tree);
 
@@ -274,11 +278,8 @@ impl MjcfGenerator {
 
         let xml_string = String::from_utf8(buf)?;
 
-        // Ensure the directory exists
-        fs::create_dir_all(directory)?;
-
-        // Write the XML to a file in the specified directory
-        let file_path = Path::new(directory).join("model.xml");
+        // Write the XML to a file in the mjcf subdirectory
+        let file_path = mjcf_directory.join("model.xml");
         let mut file = File::create(file_path)?;
         file.write_all(xml_string.as_bytes())?;
 

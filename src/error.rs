@@ -11,6 +11,9 @@ pub enum RsmlError {
     #[error("XML serialization error: {0}")]
     XmlSerialize(#[from] quick_xml::se::SeError),
 
+    #[error("JSON serialization error: {0}")]
+    JsonSerialize(#[from] serde_json::Error),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

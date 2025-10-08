@@ -14,6 +14,7 @@ use error::RsmlError;
 use package::Package;
 use render_tree::RenderTree;
 use target::MjcfGenerator;
+use target::threejs::ThreeJsGenerator;
 use xml_parser::{Element, parse_xml_file};
 
 #[derive(Parser)]
@@ -31,7 +32,7 @@ enum Commands {
         #[arg(long, default_value = ".")]
         dir: String,
         /// Target format (currently supports mjcf)
-        #[arg(long, default_value = "mjcf")]
+        #[arg(long, default_value = "threejs", help = "Target format (currently supports mjcf, threejs)")]
         target: String,
     },
 }
@@ -64,19 +65,30 @@ fn build_command(package_dir: &str, target: &str) -> Result<()> {
     render_tree.calculate()?;
 
     // Validate target format
-    if target == "mjcf" {
-        // Generate MJCF file
-        println!("\n正在生成MJCF文件...");
-        let mut mjcf_generator = MjcfGenerator::new();
-        mjcf_generator.generate_to_directory(&render_tree, &target_dir)?;
+    match target {
+        "mjcf" => {
+            // Generate MJCF file
+            println!("\n正在生成MJCF文件...");
+            let mut mjcf_generator = MjcfGenerator::new();
+            mjcf_generator.generate_to_directory(&render_tree, &target_dir)?;
 
-        println!("MJCF files generated successfully in {}", target_dir);
-    } else {
-        eprintln!(
-            "Unsupported target format: {}. Currently supported: mjcf",
-            target
-        );
-        std::process::exit(1);
+            println!("MJCF files generated successfully in {}", target_dir);
+        },
+        "threejs" => {
+            // Generate Three.js JSON file
+            println!("\n正在生成Three.js场景文件...");
+            let threejs_generator = ThreeJsGenerator::new();
+            threejs_generator.generate_to_directory(&render_tree, &target_dir)?;
+
+            println!("Three.js files generated successfully in {}", target_dir);
+        },
+        _ => {
+            eprintln!(
+                "Unsupported target format: {}. Currently supported: mjcf, threejs",
+                target
+            );
+            std::process::exit(1);
+        }
     }
 
     Ok(())

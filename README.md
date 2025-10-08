@@ -101,14 +101,23 @@ Create an RSML file with the `.rsml` extension (or `.xml` as shown in the exampl
 Compile your RSML file to MJCF:
 
 ```bash
-cargo run -- build <input.rsml> <output_dir> --target mjcf --package <package.toml>
+cargo run -- build --dir <directory> --target mjcf
 ```
 
 For example:
 
 ```bash
-cargo run -- build rsml_example.xml output_dir --target mjcf --package examples/tiny_example/package.toml
+# Generate MJCF format for physics simulation
+cargo run -- build --dir examples/tiny_example --target mjcf
+
+# Generate Three.js format for web-based 3D rendering
+cargo run -- build --dir examples/tiny_example --target threejs
 ```
+
+The command expects:
+- `<directory>/package.toml`: Package configuration file
+- `<directory>/src/main.xml`: Main RSML file
+- Output will be generated to `<directory>/target/<target_name>` (e.g., `<directory>/target/mjcf` or `<directory>/target/threejs`)
 
 ## Elements
 
@@ -130,7 +139,7 @@ cargo run -- build rsml_example.xml output_dir --target mjcf --package examples/
 ## Output Formats
 
 - **MJCF**: Currently supported output format for physics simulation engines
-- **Three.js**: Planned future support for web-based 3D rendering
+- **Three.js**: Now supported! Generates JSON scene description with GLB assets for web-based 3D rendering
 
 ## Roadmap
 

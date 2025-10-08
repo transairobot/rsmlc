@@ -118,11 +118,11 @@ impl<'a> RenderTree<'a> {
         Ok(this)
     }
 
-    pub fn parse_style_map_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> anyhow::Result<()>{
+    pub fn parse_style_map_recursive(&self, node: &Rc<RefCell<RenderNode>>) -> anyhow::Result<()> {
         let mut node_ref = node.borrow_mut();
 
         node_ref.specified_style = style::Style::from_style_map(&node_ref.style_map)?;
-        
+
         let children = node_ref.children.clone(); // Clone the children vec to avoid borrow issues
         drop(node_ref); // Release the borrow
 
@@ -553,17 +553,11 @@ impl<'a> RenderTree<'a> {
         match &node_ref.node_type {
             RenderNodeType::Item => {
                 // Clone the text_content to avoid borrowing issues
-                let name = node_ref.text_content.clone();
-                *node_ref.computed_style.mut_content_size() =
-                    SpaceSize::from_dim3_length(self.package.get_space_size(&name).ok_or(
-                        RsmlError::PackageConfigError(format!(
-                            "object/group not found. name={}",
-                            name
-                        )),
-                    )?);
-
                 // Set the object in the computed style
                 self.set_computed_object(&mut node_ref)?;
+                *node_ref.computed_style.mut_content_size() = SpaceSize::from_dim3_length(
+                    node_ref.computed_style.object.as_ref().unwrap().size,
+                );
             }
             RenderNodeType::Space => match node_ref.specified_style.display {
                 style::Display::Flex => {

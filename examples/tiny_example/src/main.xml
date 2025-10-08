@@ -25,25 +25,40 @@
       margin-y-reverse = "10cm"
 
       [[styles]]
-      selector = "#on_table"
-      flex-direction="x"
+      selector = ".muti_row"
+      flex-direction="y"
 
       [[styles]]
-      selector = ".bottles"
-      margin-x = "10cm"
-      margin-y = "10cm"
-      margin-x-reverse = "10cm"
-      margin-y-reverse = "10cm"
+      selector = ".row"
+      flex-direction="x"
+
+
+      [[styles]]
+      selector = ".bottle"
+      margin-x = "5cm"
+      margin-y = "5cm"
+      margin-x-reverse = "5cm"
+      margin-y-reverse = "5cm"
       ]]>
     </style>
   </head>
   <body>
     <!-- flex默认-z，就是按照顺序从上到下排列-->
-    <div id="main_room" style="size:10m 10m 10m;">
+    <div id="main_room" style="size:10m 10m 10m;align-items:center center"> <!-- 交叉轴的布局， 这里是x轴和y轴，center center正中心-->
       <div id="table_area">
-        <div id="on_table">
-          <group select="random" class="bottles"> bottles </group>   <!-- 从bottle group中随机-->
-          <group select="random" class="bottles"> bottles </group>   <!-- 从bottle group中随机-->
+        <div id="on_table" class="muti_row">
+          <div id="row1" class="row">
+            <group select="random" class="bottle"> bottles </group>   <!-- 从bottle group中随机-->
+            <group select="random" class="bottle"> bottles </group>
+            <group select="random" class="bottle"> bottles </group>
+            <group select="random" class="bottle"> bottles </group>
+          </div>
+          <div id="row2" class="row">
+            <group select="random" class="bottle"> bottles </group>   <!-- 从bottle group中随机-->
+            <group select="random" class="bottle"> bottles </group>
+            <group select="random" class="bottle"> bottles </group>
+            <group select="random" class="bottle"> bottles </group>
+          </div>
         </div>
         <object id="table_plane"> table_plane </object>
         <div id="table-legs">
