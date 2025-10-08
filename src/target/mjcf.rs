@@ -3,6 +3,7 @@ use crate::dim3::Dim3;
 use crate::error::Result;
 use crate::package::GeomType as PackageGeomType;
 use crate::render_tree::{RenderNode, RenderNodeType, RenderTree};
+use crate::style::SpacePosition;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
@@ -297,18 +298,24 @@ impl MjcfGenerator {
                     format!("{}_{}", node_ref.tag_name, geoms.len())
                 };
 
-                // 获取位置信息
-                let pos = if let Some(center_pos) = node_ref.computed_style.get_center_pos() {
-                    if let Some(position) = center_pos.get_length() {
-                        format!(
-                            "{} {} {}",
-                            Self::length_to_meters(position.x),
-                            Self::length_to_meters(position.y),
-                            Self::length_to_meters(position.z)
-                        )
-                    } else {
-                        "0 0 0".to_string()
+                let pos = match object.geom_type {
+                    PackageGeomType::Mesh => node_ref.computed_style.content_pos(),
+                    _ => {
+                        if let Some(pos) = node_ref.computed_style.get_center_pos() {
+                            pos
+                        } else {
+                            SpacePosition::zero()
+                        }
                     }
+                };
+                // 获取位置信息
+                let pos = if let Some(position) = pos.get_length() {
+                    format!(
+                        "{} {} {}",
+                        Self::length_to_meters(position.x),
+                        Self::length_to_meters(position.y),
+                        Self::length_to_meters(position.z)
+                    )
                 } else {
                     "0 0 0".to_string()
                 };
@@ -496,19 +503,19 @@ impl MjcfGenerator {
                         for chunk in indices.chunks(3) {
                             if chunk.len() == 3 {
                                 let v1 = stl_io::Vector([
-                                    positions[chunk[0] as usize][0],
-                                    positions[chunk[0] as usize][1],
-                                    positions[chunk[0] as usize][2],
+                                    positions[chunk[0] as usize][0] * 0.1,
+                                    positions[chunk[0] as usize][2] * 0.1,
+                                    positions[chunk[0] as usize][1] * 0.1,
                                 ]);
                                 let v2 = stl_io::Vector([
-                                    positions[chunk[1] as usize][0],
-                                    positions[chunk[1] as usize][1],
-                                    positions[chunk[1] as usize][2],
+                                    positions[chunk[1] as usize][0] * 0.1,
+                                    positions[chunk[1] as usize][2] * 0.1,
+                                    positions[chunk[1] as usize][1] * 0.1,
                                 ]);
                                 let v3 = stl_io::Vector([
-                                    positions[chunk[2] as usize][0],
-                                    positions[chunk[2] as usize][1],
-                                    positions[chunk[2] as usize][2],
+                                    positions[chunk[2] as usize][0] * 0.1,
+                                    positions[chunk[2] as usize][2] * 0.1,
+                                    positions[chunk[2] as usize][1] * 0.1,
                                 ]);
                                 triangles.push(stl_io::Triangle {
                                     normal: stl_io::Vector([0.0, 0.0, 0.0]), // Will be computed later
@@ -747,6 +754,7 @@ mod tests {
                 ),
                 path: Some("examples/tiny_example/model.glb".to_string()), // Use a dummy path for testing
                 identifier: "test_object".to_string(),
+                mesh_actual_size: (0.0, 0.0, 0.0),
             },
         );
 

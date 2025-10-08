@@ -5,8 +5,9 @@
       # 格式是toml
       [[styles]] 
       selector = "#table-legs" # id选择器
-      size = "100% 100% auto" # 分别表示x,y,z的长度, 100%表示长度为父容器的对应轴的长度， 
+      size = "100% 100% auto" # 分别表示x,y,z的长度(对应css的width和height), 100%表示长度为父容器的对应轴的长度， 
                               # auto表示长度根据子容器确定, 因为叶子节点的size必须是确定的, 所以auto是一定能被求解的。
+
       flex-direction = "y"    # 表示flex的主轴为y轴，并且flex的方向是原点到z轴的正无穷方向(0,1,0)
       justify-content = "space-between" # 和css的语义一致
 
@@ -22,6 +23,17 @@
       margin-y = "10cm"
       margin-x-reverse = "10cm"
       margin-y-reverse = "10cm"
+
+      [[styles]]
+      selector = "#on_table"
+      flex-direction="x"
+
+      [[styles]]
+      selector = ".bottles"
+      margin-x = "10cm"
+      margin-y = "10cm"
+      margin-x-reverse = "10cm"
+      margin-y-reverse = "10cm"
       ]]>
     </style>
   </head>
@@ -29,6 +41,10 @@
     <!-- flex默认-z，就是按照顺序从上到下排列-->
     <space id="main_room" style="size:10m 10m 10m;">
       <space id="table_area">
+        <space id="on_table">
+          <group select="random" class="bottles"> bottles </group>   <!-- 从bottle group中随机-->
+          <group select="random" class="bottles"> bottles </group>   <!-- 从bottle group中随机-->
+        </space>
         <object id="table_plane"> table_plane </object>
         <space id="table-legs">
           <space id="left-legs">

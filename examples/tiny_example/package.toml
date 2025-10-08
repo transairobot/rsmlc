@@ -12,7 +12,7 @@ table_leg4 = { geom-type = "box", size = "10cm 10cm 40cm" }
 floor = { geom-type = "box", size = "10m 10m 1cm" }
 
 [[groups]]
-name = "bottles" # 默认查找路径时src/assets
+name = "bottles" # 默认查找路径时src/assets, mesh格式是不带单位的，这里需要显式制定size
 [groups.objects]
 bottle0 = { path = "bottles/base0.glb", size = "0.54dm 1.90dm 0.54dm" }
 bottle1 = { path = "bottles/base1.glb", size = "0.57dm 1.90dm 0.57dm" }
@@ -36,5 +36,5 @@ bottle18 = { path = "bottles/base18.glb", size = "0.80dm 1.90dm 0.77dm" }
 bottle19 = { path = "bottles/base19.glb", size = "0.70dm 1.55dm 0.90dm" }
 bottle20 = { path = "bottles/base20.glb", size = "0.57dm 1.90dm 0.71dm" }
 bottle21 = { path = "bottles/base21.glb", size = "0.96dm 1.90dm 0.96dm" }
-bottle22 = { path = "bottles/base22.glb", size = "0.62dm 1.90dm 0.63dm" }
+bottle22 = { path = "bottles/base22.glb", size = "0.62dm 0.63dm 1.90dm" }
 box_bottle = { geom-type = "box", size = "5cm 5cm 10cm" }
