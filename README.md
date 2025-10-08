@@ -139,4 +139,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-[License information would go here]
+MIT LICENSE
