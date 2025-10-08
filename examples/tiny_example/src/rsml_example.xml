@@ -39,25 +39,25 @@
   </head>
   <body>
     <!-- flex默认-z，就是按照顺序从上到下排列-->
-    <space id="main_room" style="size:10m 10m 10m;">
-      <space id="table_area">
-        <space id="on_table">
+    <div id="main_room" style="size:10m 10m 10m;">
+      <div id="table_area">
+        <div id="on_table">
           <group select="random" class="bottles"> bottles </group>   <!-- 从bottle group中随机-->
           <group select="random" class="bottles"> bottles </group>   <!-- 从bottle group中随机-->
-        </space>
+        </div>
         <object id="table_plane"> table_plane </object>
-        <space id="table-legs">
-          <space id="left-legs">
+        <div id="table-legs">
+          <div id="left-legs">
             <object id="leg1" class="leg"> table_leg </object>
             <object id="leg2" class="leg"> table_leg </object>
-          </space>
-          <space id="right-legs">
+          </div>
+          <div id="right-legs">
             <object id="leg3" class="leg"> table_leg </object>
             <object id="leg4" class="leg"> table_leg </object>
-          </space>
-        </space>
-      </space>
+          </div>
+        </div>
+      </div>
       <object id="floor"> floor </object>
-    </space>
+    </div>
   </body>
 </rsml>
