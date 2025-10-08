@@ -101,7 +101,13 @@ Create an RSML file with the `.rsml` extension (or `.xml` as shown in the exampl
 Compile your RSML file to MJCF:
 
 ```bash
-cargo run -- <input.rsml> <output.mjcf>
+cargo run -- build <input.rsml> <output_dir> --target mjcf --package <package.toml>
+```
+
+For example:
+
+```bash
+cargo run -- build rsml_example.xml output_dir --target mjcf --package examples/tiny_example/package.toml
 ```
 
 ## Elements
